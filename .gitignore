@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+host/build/
+.pytest_cache/
+.ruff_cache/
+
+# Firmware build output
+target/build/
+cmake-build*/
+*.elf
+*.uf2
+*.map
+
+# Toolchain-generated artifacts (RTE code, A2L, descriptors land here)
+generated/
+
+# MATLAB / Simulink
+slprj/
+*.slxc
+*.autosave
+*.asv
+
+# Measurement logs
+*.mf4
+
+# Local tooling
+.codegraph/
+.claude/settings.local.json

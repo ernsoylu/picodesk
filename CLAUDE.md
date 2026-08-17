@@ -76,26 +76,34 @@ On-target GDB/OpenOCD debugging, NvM parameter persistence, Apple Silicon suppor
 emulation, XCP seed/key security. If a task seems to need one of these, flag it instead of
 implementing it.
 
-## Repository layout (planned)
+## Repository layout
 
 ```
 picodesk/
-├── REQUIREMENTS.md      # SRS v7.0 — authoritative spec
-├── host/                # Python: GUI, MATLAB bridge, codegen orchestrator, XCP master
-│   ├── gui/             # PyQt6 (routing matrix, diagnostic console, XCP dashboard)
-│   ├── matlab_bridge/   # persistent matlab.engine session, .slx extraction, hash gating
-│   ├── rtegen/          # RTE C-code templating from routing JSON
-│   ├── build/           # CMake driver, dependency checker, sizing report
-│   └── xcp/             # pyxcp master, A2L DWARF patching, MDF4 logging
-├── target/              # C firmware: RTE runtime, HAL, FreeRTOS config, linker scripts
-│   ├── rte/             # dispatcher, seqlocks, CAL pages, DAQ ring
-│   ├── hal/             # default HAL (GPIO/ADC/PWM) + hal_manifest.json
-│   ├── xcplite/         # Vector XCPlite + CDC transport shim
-│   └── ld/              # custom bank-separated linker script
-└── tests/
+├── REQUIREMENTS.md          # SRS v7.0 — authoritative spec
+├── host/                    # Python toolchain — pip install -e "host[dev]"
+│   ├── pyproject.toml
+│   └── picodesk/
+│       ├── app.py           # entry point (picodesk console script)
+│       ├── gui/             # PyQt6 (routing matrix, diagnostic console, XCP dashboard)
+│       ├── matlab_bridge/   # persistent matlab.engine session, .slx extraction, hash gating
+│       ├── rtegen/          # RTE C-code templating (Jinja2) from routing JSON
+│       ├── buildsys/        # dependency checker, sizing report, CMake driver
+│       └── xcp/             # pyxcp master, A2L DWARF patching, MDF4 logging
+├── target/                  # C firmware, built via CMake + Pico SDK
+│   ├── CMakeLists.txt
+│   ├── src/                 # main.c, HardFault capture
+│   ├── rte/                 # dispatcher, seqlocks, CAL pages, DAQ ring
+│   ├── hal/                 # default HAL (GPIO/ADC/PWM) + hal_manifest.json
+│   ├── xcplite/             # vendored Vector XCPlite + CDC transport shim
+│   ├── config/              # FreeRTOSConfig.h (SMP)
+│   └── ld/                  # custom bank-separated linker script
+└── tests/                   # host-side pytest suite
 ```
 
-Keep this section current as the real structure emerges.
+Note: the build-orchestration package is `buildsys/`, not `build/` — a `build/` path
+would collide with setuptools/CMake build-output directories and .gitignore rules.
+Keep this section current as the structure evolves.
 
 ## Working conventions
 
