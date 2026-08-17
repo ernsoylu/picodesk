@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  # SRS section 8 pin: ARM GCC 12.2.rel1 exactly.
+  ARM_GCC_URL: https://developer.arm.com/-/media/Files/downloads/gnu/12.2.rel1/binrel/arm-gnu-toolchain-12.2.rel1-x86_64-arm-none-eabi.tar.xz
+  ARM_GCC_DIR: arm-gnu-toolchain-12.2.rel1-x86_64-arm-none-eabi
+
+jobs:
+  # ---- Phase 0: host toolchain quality ------------------------------------
+  host-lint:
+    name: host / lint (P0)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install ruff
+      - run: ruff check host tests
+
+  host-tests:
+    name: host / pytest (P0)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -e "host[dev]"
+      - run: pytest tests -q
+      - name: Dependency checker report (informational)
+        run: python -m picodesk.buildsys.dependency_checker --json
+
+  # ---- Phase 0/1: firmware build + BLD-008 reproducibility gate -----------
+  firmware:
+    name: firmware / build + reproducibility (P0-P1)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Init pico-sdk tinyusb (nested submodule, shallow)
+        run: git -C external/pico-sdk submodule update --init --depth 1 lib/tinyusb
+      - name: Cache ARM GCC 12.2.rel1
+        id: cache-toolchain
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/arm-gcc
+          key: ${{ env.ARM_GCC_DIR }}
+      - name: Fetch ARM GCC 12.2.rel1
+        if: steps.cache-toolchain.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "${{ runner.temp }}/arm-gcc"
+          curl -sL "$ARM_GCC_URL" | tar xJ -C "${{ runner.temp }}/arm-gcc"
+      - name: Toolchain on PATH
+        run: |
+          echo "${{ runner.temp }}/arm-gcc/${ARM_GCC_DIR}/bin" >> "$GITHUB_PATH"
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ninja-build
+      - name: Verify pinned compiler
+        run: arm-none-eabi-gcc --version | head -1 | grep -F "12.2"
+      - name: Build A
+        run: |
+          cmake -S target -B build-a -G Ninja -DCMAKE_BUILD_TYPE=Release
+          ninja -C build-a
+      - name: Build B (independent tree)
+        run: |
+          cmake -S target -B build-b -G Ninja -DCMAKE_BUILD_TYPE=Release
+          ninja -C build-b
+      - name: Reproducibility gate (BLD-008)
+        run: |
+          sha256sum build-a/picodesk_firmware.uf2 build-b/picodesk_firmware.uf2
+          cmp build-a/picodesk_firmware.uf2 build-b/picodesk_firmware.uf2
+      - name: Upload UF2
+        uses: actions/upload-artifact@v4
+        with:
+          name: picodesk_firmware
+          path: |
+            build-a/picodesk_firmware.uf2
+            build-a/picodesk_firmware.elf.map

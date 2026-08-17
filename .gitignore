@@ -11,6 +11,7 @@ host/build/
 
 # Firmware build output
 target/build/
+/build*/
 cmake-build*/
 *.elf
 *.uf2
