@@ -23,6 +23,12 @@ Two toolchain sides, one firmware target:
     USB CDC-ACM, and the watchdog task.
   - Memory banks are deliberately separated (BLD-002): Core 0 stack/BSS → `SRAM0`, Core 1 → `SRAM1`,
     all shared RTE data (seqlocks, DAQ ring, CAL pages, FreeRTOS heap) → `SRAM2` via custom `.ld`.
+- **VFB topology — full mesh:** any ASW model's outport can bind any other ASW model's inport, in
+  either direction — every model can be producer and consumer simultaneously — in addition to
+  ASW ↔ HAL endpoints. The routing layer, RTE generator, and GUI must all handle model→model
+  edges as first-class: single writer per inport (GUI-009), exact type/dimension/scaling match
+  (GUI-008), and ZOH + bounded-seqlock rate transitions on cross-rate/cross-core edges
+  (RTE-004, GUI-010) apply to every edge kind equally.
 
 ## Non-negotiable invariants
 
