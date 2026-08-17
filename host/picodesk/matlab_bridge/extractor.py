@@ -70,6 +70,24 @@ class ExtractionCache:
         )
 
 
+def _normalize_matlab_json(model: dict[str, Any]) -> dict[str, Any]:
+    """MATLAB's jsonencode collapses 1-element struct/cell arrays to scalars:
+    a single-port model arrives as an object, a single internal type as a
+    string. Re-shape everything back to lists."""
+    for key in ("inports", "outports"):
+        value = model.get(key)
+        if value is None:
+            model[key] = []
+        elif isinstance(value, dict):
+            model[key] = [value]
+    internal = model.get("internal_types")
+    if isinstance(internal, str):
+        model["internal_types"] = [internal]
+    elif internal is None:
+        model["internal_types"] = []
+    return model
+
+
 def check_fast_loop_types(name: str, model: dict[str, Any]) -> None:
     """Enforce MAT-002 on one model descriptor."""
     if model["rate_group"] != "fast_1ms":
@@ -110,7 +128,7 @@ def extract_models(
             cache_hits[name] = True
         else:
             raw = session.call("picodesk_extract", str(slx))
-            model = json.loads(raw)
+            model = _normalize_matlab_json(json.loads(raw))
             model["rate_group"] = rate_group_for(model["base_rate_s"])
             cache_hits[name] = False
 

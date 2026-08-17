@@ -10,11 +10,13 @@ function json = picodesk_extract(slxPath)
 
 [~, modelName] = fileparts(slxPath);
 load_system(slxPath);
-cleanup = onCleanup(@() close_system(modelName, 0));
 
-% Compile to resolve port data types and sample times.
+% Compile to resolve port data types and sample times. A single cleanup
+% object terminates the compile BEFORE closing — two separate onCleanup
+% locals destruct in unspecified order and close_system fails on a model
+% that is still compiled.
 feval(modelName, [], [], [], 'compile');
-compileCleanup = onCleanup(@() feval(modelName, [], [], [], 'term'));
+cleanup = onCleanup(@() picodesk_term_and_close(modelName));
 
 info = struct();
 info.base_rate_s = picodesk_base_rate(modelName);
@@ -23,6 +25,15 @@ info.outports = picodesk_ports(modelName, 'Outport');
 info.internal_types = picodesk_internal_types(modelName);
 
 json = jsonencode(info);
+end
+
+function picodesk_term_and_close(modelName)
+try
+    feval(modelName, [], [], [], 'term');
+catch
+    % already terminated
+end
+close_system(modelName, 0);
 end
 
 function rate = picodesk_base_rate(modelName)
