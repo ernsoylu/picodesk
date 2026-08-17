@@ -15,6 +15,7 @@ dependencies = [
     "pyelftools>=0.31",
     "asammdf>=7.4",
     "jinja2>=3.1",
+    "jsonschema>=4.17",
 ]
 # matlabengine is deliberately not declared: its version is locked to the locally
 # installed MATLAB release (R2023b-R2024b) and must be installed to match.
