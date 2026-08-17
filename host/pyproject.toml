@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "picodesk"
 version = "0.1.0"
 description = "Python-MATLAB Virtual Functional Bus & calibration toolchain for RP2040"
-readme = "../README.md"
+readme = "README.md"
 # Python must align exactly with the MATLAB Engine release (SRS section 8).
 requires-python = ">=3.9,<3.12"
 dependencies = [
