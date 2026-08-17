@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "workspace": "gen_e2e",
+  "connections": [
+    {"producer": "hal.hal_adc_read", "consumer": "FastCtrl.adc_u", "hal_arg": 0},
+    {"producer": "FastCtrl.torque_cmd", "consumer": "SlowSense.load_in"},
+    {"producer": "SlowSense.derate_pct", "consumer": "FastCtrl.derate_in"}
+  ]
+}

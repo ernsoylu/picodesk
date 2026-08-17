@@ -119,3 +119,30 @@ def test_session_survives_engine_kill(session) -> None:
 def test_alignment_flags_untested_release() -> None:
     problem = check_python_alignment("R2025b")
     assert problem is not None and "R2025b" in problem
+
+
+def test_ert_codegen_produces_step_code(session, workspace, tmp_path) -> None:
+    """Real Embedded Coder run on the FastCtrl fixture (MAT-003 groundwork):
+    ERT emits <model>_step with no software-float in the generated C."""
+    session.call("cd", str(tmp_path), nargout=0)
+    session.call("load_system", str(workspace / "good" / "FastCtrl.slx"),
+                 nargout=0)
+    try:
+        # GenCodeOnly (not GenerateCodeOnly) is the Embedded Coder parameter
+        # name; verified against the installed release.
+        session.call("set_param", "FastCtrl",
+                     "SystemTargetFile", "ert.tlc",
+                     "GenCodeOnly", "on", nargout=0)
+        session.call("slbuild", "FastCtrl", nargout=0)
+    finally:
+        session.call("close_system", "FastCtrl", 0.0, nargout=0)
+
+    gen_c = tmp_path / "FastCtrl_ert_rtw" / "FastCtrl.c"
+    assert gen_c.is_file(), "ERT did not produce FastCtrl.c"
+    code = gen_c.read_text(encoding="utf-8", errors="replace")
+    assert "FastCtrl_step" in code
+    # Fixed-point fixture: the generated math must be integer-only (MAT-002).
+    # ERT's float types are real_T/real32_T; neither may appear in the step
+    # code of an all-integer model.
+    assert "real_T" not in code
+    assert "real32_T" not in code

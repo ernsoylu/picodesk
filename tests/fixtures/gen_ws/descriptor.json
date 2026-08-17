@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "models": {
+    "FastCtrl": {
+      "file": "FastCtrl.slx",
+      "slx_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "base_rate_s": 0.001,
+      "rate_group": "fast_1ms",
+      "inports": [
+        {"name": "adc_u", "data_type": "uint16", "width": 1},
+        {"name": "derate_in", "data_type": "uint8", "width": 1}
+      ],
+      "outports": [
+        {"name": "torque_cmd", "data_type": "int16", "width": 1}
+      ],
+      "internal_types": ["int16", "int32"]
+    },
+    "SlowSense": {
+      "file": "SlowSense.slx",
+      "slx_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "base_rate_s": 0.1,
+      "rate_group": "slow_100ms",
+      "inports": [
+        {"name": "load_in", "data_type": "int16", "width": 1}
+      ],
+      "outports": [
+        {"name": "derate_pct", "data_type": "uint8", "width": 1}
+      ],
+      "internal_types": ["int32"]
+    }
+  }
+}

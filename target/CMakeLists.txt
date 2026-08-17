@@ -43,6 +43,7 @@ option(PICODESK_SIM "Build for Renode simulation (no USB/TinyUSB)" OFF)
 
 set(PICODESK_SOURCES
     src/main.c
+    src/freertos_hooks.c
     src/spike_models.c
     src/hardfault.c
     rte/rte_dispatch.c
@@ -79,6 +80,45 @@ if(PICODESK_SIM)
     target_compile_definitions(picodesk_firmware PRIVATE PICODESK_SIM=1)
 else()
     target_link_libraries(picodesk_firmware tinyusb_device tinyusb_board)
+endif()
+
+# ---- Generated firmware (Phase 5, milestone M1) -----------------------------
+# PICODESK_GEN_DIR points at a picodesk.rtegen output directory; model step
+# implementations (ERT output or stand-ins) live in its models/ subdirectory.
+set(PICODESK_GEN_DIR "" CACHE PATH "Directory with generated RTE sources")
+if(PICODESK_GEN_DIR)
+    file(GLOB PICODESK_GEN_SOURCES
+        ${PICODESK_GEN_DIR}/*.c
+        ${PICODESK_GEN_DIR}/models/*.c)
+    add_executable(picodesk_gen_firmware
+        src/main_gen.c
+        src/freertos_hooks.c
+        src/hardfault.c
+        rte/rte_seqlock.c
+        rte/rte_daq_ring.c
+        rte/rte_calpage.c
+        hal/hal_rp2040.c
+        ${PICODESK_GEN_SOURCES}
+    )
+    target_include_directories(picodesk_gen_firmware PRIVATE
+        rte config src hal ${PICODESK_GEN_DIR})
+    target_compile_options(picodesk_gen_firmware PRIVATE -Wall -Werror=date-time)
+    target_link_libraries(picodesk_gen_firmware
+        pico_stdlib
+        pico_multicore
+        hardware_timer
+        hardware_irq
+        hardware_gpio
+        hardware_adc
+        hardware_pwm
+        FreeRTOS-Kernel
+        FreeRTOS-Kernel-Heap4
+    )
+    pico_enable_stdio_uart(picodesk_gen_firmware 1)
+    pico_enable_stdio_usb(picodesk_gen_firmware 0)
+    pico_set_linker_script(picodesk_gen_firmware
+        ${CMAKE_CURRENT_SOURCE_DIR}/ld/rp2040_banked.ld)
+    pico_add_extra_outputs(picodesk_gen_firmware)
 endif()
 
 # Telemetry over UART; USB CDC arrives with XCP in Phase 3.

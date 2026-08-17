@@ -50,9 +50,9 @@ jobs:
       - run: cmake --build build-native
       - run: ctest --test-dir build-native --output-on-failure
 
-  # ---- Phases 1-3: whole-firmware system test on emulated RP2040 ----------
+  # ---- Phases 1-5: whole-firmware system tests on emulated RP2040 ----------
   renode-sim:
-    name: sim / Renode system test (P1-P3)
+    name: sim / Renode system tests (P1-P5)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -92,13 +92,34 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - name: Install Renode test framework
-        run: pip install -r "${{ runner.temp }}/renode/renode_1.16.1_portable/tests/requirements.txt"
+      - name: Install Renode test framework + generator deps
+        run: |
+          pip install -r "${{ runner.temp }}/renode/renode_1.16.1_portable/tests/requirements.txt"
+          pip install jinja2 jsonschema
       - name: Run system tests (boot, dispatch, seqlocks, DAQ, CAL switch)
         run: |
           "${{ runner.temp }}/renode/renode_1.16.1_portable/renode-test" \
             --variable "FIRMWARE:$GITHUB_WORKSPACE/build-sim/picodesk_firmware.elf" \
             sim/picodesk.robot
+      - name: Generate RTE from the fixture workspace (P5)
+        run: |
+          PYTHONPATH=host python -m picodesk.rtegen.generator \
+            --descriptor tests/fixtures/gen_ws/descriptor.json \
+            --routing tests/fixtures/gen_ws/routing.json \
+            --hal-manifest target/hal/hal_manifest.json \
+            --out build-gen-src
+          mkdir -p build-gen-src/models
+          cp tests/fixtures/gen_ws/models/*.c build-gen-src/models/
+      - name: Build generated firmware (P5, milestone M1)
+        run: |
+          cmake -S target -B build-gen -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DPICODESK_SIM=ON -DPICODESK_GEN_DIR="$GITHUB_WORKSPACE/build-gen-src"
+          ninja -C build-gen picodesk_gen_firmware
+      - name: Run generated-RTE system test (P5, milestone M1)
+        run: |
+          "${{ runner.temp }}/renode/renode_1.16.1_portable/renode-test" \
+            --variable "FIRMWARE:$GITHUB_WORKSPACE/build-gen/picodesk_gen_firmware.elf" \
+            sim/picodesk_gen.robot
       - name: Upload Robot logs
         if: always()
         uses: actions/upload-artifact@v4
