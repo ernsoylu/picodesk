@@ -22,6 +22,23 @@ criteria pass on hardware, not when its code merges.
 **Prerequisites:** 2× Raspberry Pi Pico, a logic analyzer (NFR-1 measurement), Windows + Linux x64
 test machines, MATLAB R2023b–R2024b license.
 
+## Status
+
+| Phase | Code | Automated verification | Open |
+|---|---|---|---|
+| P0 Foundations | done | CI: lint, pytest, double-build UF2 hash match (BLD-008) | — |
+| P1 Real-time spike | done | CI: memory-bank audit (BLD-001/002), Renode boot + 1 kHz dispatch | NFR-1 jitter campaign (logic analyzer) |
+| P2 RTE primitives | done | CI: native pthread stress (seqlock/ring/CAL), Renode primitive health | 24 h on-target soak |
+| P3 XCP on CDC | done | CI: XCP protocol suite (native) | 50 sig × 100 Hz DAQ soak; NFR-1 under load; XCPlite swap (interim slave in tree) |
+| P4 MATLAB pipeline | done | CI: 19 fake-engine tests. Local R2025b: real .slx extraction, MAT-002, NFR-2 gate, SIGKILL recovery, ERT codegen | R2023b–R2024b matrix (this box runs R2025b) |
+| P5 RTE generator | done — **M1 met** | CI: 12 generator tests + generated firmware built and run on emulated RP2040 (ASW↔ASW round trip closes) | ERT-emitted step code wired in place of stand-ins; array signals |
+| P6 Build & safety | not started | — | — |
+| P7 GUI | not started | — | — |
+| P8 Validation | not started | — | — |
+
+**Simulation caveat:** Renode validates function, not timing — virtual time is not real time, and
+USB is unmodeled. NFR-1/NFR-3 numbers come only from hardware.
+
 ---
 
 ## Phase 0 — Foundations & walking skeleton
