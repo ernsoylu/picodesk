@@ -22,7 +22,7 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install ruff
-      - run: ruff check host tests
+      - run: ruff check host tests tools
 
   host-tests:
     name: host / pytest (P0)
@@ -71,6 +71,8 @@ jobs:
         run: |
           cmake -S target -B build-a -G Ninja -DCMAKE_BUILD_TYPE=Release
           ninja -C build-a
+      - name: Memory bank audit (BLD-001/BLD-002, P1)
+        run: python3 tools/check_memmap.py build-a/picodesk_firmware.elf.map
       - name: Build B (independent tree)
         run: |
           cmake -S target -B build-b -G Ninja -DCMAKE_BUILD_TYPE=Release
