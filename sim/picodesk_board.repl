@@ -1,0 +1,13 @@
+// Raspberry Pico + the non-striped SRAM bank windows (0x2100_0000-0x2103_FFFF)
+// that the banked linker script (BLD-002) places everything into. The stock
+// platform only maps the striped window at 0x2000_0000.
+//
+// Modeled as real MappedMemory (not an alias): SRAM3 hosts SRAM-executed
+// code (BLD-001) and Renode CPUs execute from mapped memory only. Firmware
+// and bootrom never address the same bytes through both windows, so the
+// missing stripe-interleave coherence is irrelevant functionally.
+
+using "../external/renode-rp2040/boards/raspberry_pico.repl"
+
+sram_banked: Memory.MappedMemory @ sysbus 0x21000000
+    size: 0x40000

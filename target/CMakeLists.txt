@@ -36,7 +36,12 @@ add_compile_options(
 )
 add_compile_definitions(PICO_PROGRAM_BUILD_DATE="reproducible")
 
-add_executable(picodesk_firmware
+# Renode simulation build (sim/): USB is not modeled, so the XCP task drops
+# its TinyUSB transport and only drains the DAQ ring. Everything else —
+# scheduler, fast ISR, seqlocks, CAL pages, banked memory — is identical.
+option(PICODESK_SIM "Build for Renode simulation (no USB/TinyUSB)" OFF)
+
+set(PICODESK_SOURCES
     src/main.c
     src/spike_models.c
     src/hardfault.c
@@ -47,8 +52,12 @@ add_executable(picodesk_firmware
     hal/hal_rp2040.c
     xcp/xcp_core.c
     xcp/xcp_cdc_task.c
-    xcp/usb_descriptors.c
 )
+if(NOT PICODESK_SIM)
+    list(APPEND PICODESK_SOURCES xcp/usb_descriptors.c)
+endif()
+
+add_executable(picodesk_firmware ${PICODESK_SOURCES})
 
 target_include_directories(picodesk_firmware PRIVATE rte config src hal xcp)
 
@@ -62,11 +71,15 @@ target_link_libraries(picodesk_firmware
     hardware_gpio
     hardware_adc
     hardware_pwm
-    tinyusb_device
-    tinyusb_board
     FreeRTOS-Kernel
     FreeRTOS-Kernel-Heap4
 )
+
+if(PICODESK_SIM)
+    target_compile_definitions(picodesk_firmware PRIVATE PICODESK_SIM=1)
+else()
+    target_link_libraries(picodesk_firmware tinyusb_device tinyusb_board)
+endif()
 
 # Telemetry over UART; USB CDC arrives with XCP in Phase 3.
 pico_enable_stdio_uart(picodesk_firmware 1)

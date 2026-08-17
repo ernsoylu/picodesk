@@ -116,6 +116,7 @@ static void stats_task(void *arg) {
 
 int main(void) {
     stdio_init_all();
+    printf("PicoDesk RTE spike boot\n");
     rte_init();
     hal_init();
 
@@ -146,12 +147,16 @@ int main(void) {
 
 /* --- FreeRTOS static-allocation + safety hooks -------------------------- */
 
+/* Assert record at a fixed address (start of .noinit_fault, SRAM2): readable
+ * post-mortem from a debugger or the Renode monitor, survives resets. */
+volatile uint32_t g_assert_info[3] RTE_NOINIT_FAULT; /* magic, file, line */
+
 void vAssertCalled(const char *file, int line) {
-    (void) file;
-    (void) line;
+    g_assert_info[0] = 0xDEAD5555u;
+    g_assert_info[1] = (uint32_t) (uintptr_t) file;
+    g_assert_info[2] = (uint32_t) line;
     __asm volatile("cpsid i");
     for (;;) {
-        __asm volatile("bkpt #0");
     }
 }
 

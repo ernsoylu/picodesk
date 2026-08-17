@@ -11,12 +11,31 @@
 
 #include "FreeRTOS.h"
 #include "task.h"
-#include "tusb.h"
 
 #include "rte.h"
 #include "rte_sections.h"
 #include "xcp_core.h"
 #include "xcp_transport.h"
+
+#ifdef PICODESK_SIM
+
+/* Renode build: the RP2040 USB device block is not modeled, so the transport
+ * is dropped and this task only keeps the coherent DAQ drain running
+ * (RTE-005). The XCP protocol core itself is exercised by tests/native. */
+void xcp_task(void *arg) {
+    (void) arg;
+    spike_daq_frame_t frame;
+    for (;;) {
+        while (rte_daq_pop_frame(&frame)) {
+            /* consumed */
+        }
+        vTaskDelay(1);
+    }
+}
+
+#else /* hardware build */
+
+#include "tusb.h"
 
 /* The logical DAQ frame address the A2L/master uses for fast-loop signals.
  * Any address is workable as long as master and slave agree; the canonical
@@ -130,3 +149,5 @@ void xcp_task(void *arg) {
         vTaskDelay(1);
     }
 }
+
+#endif /* PICODESK_SIM */

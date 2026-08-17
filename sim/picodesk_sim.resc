@@ -1,0 +1,31 @@
+# PicoDesk Renode scene: RP2040 (matgla/Renode_RP2040 models, source mode —
+# no dotnet build needed) + bootrom + the PICODESK_SIM firmware ELF.
+#
+# Expects $global.FIRMWARE to point at build-sim/picodesk_firmware.elf.
+
+$machine_name?="picodesk_sim"
+
+path add $ORIGIN/../external/renode-rp2040
+
+# Compiles the C# peripheral models from source and does `mach create`.
+# Patched loader: swaps in sim/patches/rp2040_sio.cs (spinlock ownership fix —
+# see that file's header) for the upstream SIO model.
+include $ORIGIN/initialize_peripherals_patched.resc
+
+machine LoadPlatformDescription $ORIGIN/picodesk_board.repl
+
+# The bootrom brings up XIP and launches the firmware, and services the
+# pico-sdk multicore launch protocol for core 1 (FreeRTOS SMP needs it).
+sysbus LoadELF $ORIGIN/../external/renode-rp2040/bootroms/rp2040/b2.elf
+
+# Accuracy/speed trade-off recommended by the platform repo.
+emulation SetGlobalQuantum "0.0001"
+
+# The spike firmware uses no PIO; halting the two PIO co-CPUs saves host time.
+sysbus.piocpu0 IsHalted true
+sysbus.piocpu1 IsHalted true
+
+sysbus LoadELF $global.FIRMWARE
+
+sysbus.cpu0 VectorTableOffset 0x00000000
+sysbus.cpu1 VectorTableOffset 0x00000000

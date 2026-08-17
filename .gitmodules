@@ -6,3 +6,7 @@
 	path = external/FreeRTOS-Kernel
 	url = https://github.com/FreeRTOS/FreeRTOS-Kernel.git
 	shallow = true
+[submodule "external/renode-rp2040"]
+	path = external/renode-rp2040
+	url = https://github.com/matgla/Renode_RP2040.git
+	shallow = true

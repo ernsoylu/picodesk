@@ -50,6 +50,66 @@ jobs:
       - run: cmake --build build-native
       - run: ctest --test-dir build-native --output-on-failure
 
+  # ---- Phases 1-3: whole-firmware system test on emulated RP2040 ----------
+  renode-sim:
+    name: sim / Renode system test (P1-P3)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Cache ARM GCC 12.2.rel1
+        id: cache-toolchain-sim
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/arm-gcc
+          key: ${{ env.ARM_GCC_DIR }}
+      - name: Fetch ARM GCC 12.2.rel1
+        if: steps.cache-toolchain-sim.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "${{ runner.temp }}/arm-gcc"
+          curl -sL "$ARM_GCC_URL" | tar xJ -C "${{ runner.temp }}/arm-gcc"
+      - name: Toolchain on PATH
+        run: echo "${{ runner.temp }}/arm-gcc/${ARM_GCC_DIR}/bin" >> "$GITHUB_PATH"
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ninja-build
+      - name: Build simulation firmware (PICODESK_SIM)
+        run: |
+          cmake -S target -B build-sim -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICODESK_SIM=ON
+          ninja -C build-sim
+      - name: Cache Renode 1.16.1
+        id: cache-renode
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/renode
+          key: renode-1.16.1-portable
+      - name: Fetch Renode 1.16.1
+        if: steps.cache-renode.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "${{ runner.temp }}/renode"
+          curl -sL https://github.com/renode/renode/releases/download/v1.16.1/renode-1.16.1.linux-portable.tar.gz \
+            | tar xz -C "${{ runner.temp }}/renode"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install Renode test framework
+        run: pip install -r "${{ runner.temp }}/renode/renode_1.16.1_portable/tests/requirements.txt"
+      - name: Run system tests (boot, dispatch, seqlocks, DAQ, CAL switch)
+        run: |
+          "${{ runner.temp }}/renode/renode_1.16.1_portable/renode-test" \
+            --variable "FIRMWARE:$GITHUB_WORKSPACE/build-sim/picodesk_firmware.elf" \
+            sim/picodesk.robot
+      - name: Upload Robot logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: renode-robot-logs
+          path: |
+            log.html
+            report.html
+            robot_output.xml
+          if-no-files-found: ignore
+
   # ---- Phase 0/1: firmware build + BLD-008 reproducibility gate -----------
   firmware:
     name: firmware / build + reproducibility (P0-P1)

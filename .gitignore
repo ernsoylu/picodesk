@@ -29,6 +29,14 @@ slprj/
 # Measurement logs
 *.mf4
 
+# Renode / Robot Framework test artifacts
+log.html
+report.html
+robot_output.xml
+/results-*.xml
+/logs/
+snapshots/
+
 # Local tooling
 .codegraph/
 .claude/settings.local.json
