@@ -40,6 +40,16 @@ jobs:
       - name: Dependency checker report (informational)
         run: python -m picodesk.buildsys.dependency_checker --json
 
+  # ---- Phase 2: RTE primitives, native unit + pthread stress tests --------
+  native-rte:
+    name: native / RTE primitive tests (P2)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cmake -S tests/native -B build-native -DCMAKE_BUILD_TYPE=Release
+      - run: cmake --build build-native
+      - run: ctest --test-dir build-native --output-on-failure
+
   # ---- Phase 0/1: firmware build + BLD-008 reproducibility gate -----------
   firmware:
     name: firmware / build + reproducibility (P0-P1)

@@ -1,6 +1,7 @@
-/* Hand-written toy rate-group steps for the Phase 1 real-time spike.
- * Stand-ins for generated ERT model code; deliberately integer/Q15-only
- * (MAT-002: no software float anywhere near the fast path).
+/* Hand-written toy rate-group steps for the real-time spike.
+ * Stand-ins for generated ERT model code with RTE-001 copy-in semantics:
+ * every step takes explicit inputs and produces explicit outputs; no step
+ * reads shared buffers directly. Integer/Q15-only (MAT-002).
  */
 
 #ifndef PICODESK_SPIKE_MODELS_H
@@ -8,11 +9,17 @@
 
 #include <stdint.h>
 
-/* 1 ms step, runs inside the core 0 fast ISR from SRAM (BLD-001). */
-void spike_fast_step(void);
+#include "spike_bus.h"
 
-/* 10 ms / 100 ms steps, run in core 1 FreeRTOS tasks (RTE-002). */
-void spike_10ms_step(void);
-void spike_100ms_step(void);
+/* 1 ms step, runs inside the core 0 fast ISR from SRAM (BLD-001).
+ * cal: active CAL page (RTE-003); in: copy-in shadow of the slow bus. */
+void spike_fast_step(const spike_cal_t *cal, const spike_slow_bus_t *in,
+                     spike_fast_bus_t *out);
+
+/* 10 ms step (core 1): speed observer over the fast bus shadow. */
+int32_t spike_10ms_step(const spike_fast_bus_t *in);
+
+/* 100 ms step (core 1): thermal derate, producing the slow bus. */
+void spike_100ms_step(const spike_fast_bus_t *in, spike_slow_bus_t *out);
 
 #endif /* PICODESK_SPIKE_MODELS_H */

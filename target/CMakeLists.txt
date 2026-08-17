@@ -41,9 +41,13 @@ add_executable(picodesk_firmware
     src/spike_models.c
     src/hardfault.c
     rte/rte_dispatch.c
+    rte/rte_seqlock.c
+    rte/rte_daq_ring.c
+    rte/rte_calpage.c
+    hal/hal_rp2040.c
 )
 
-target_include_directories(picodesk_firmware PRIVATE rte config src)
+target_include_directories(picodesk_firmware PRIVATE rte config src hal)
 
 target_compile_options(picodesk_firmware PRIVATE -Wall -Werror=date-time)
 
@@ -53,6 +57,8 @@ target_link_libraries(picodesk_firmware
     hardware_timer
     hardware_irq
     hardware_gpio
+    hardware_adc
+    hardware_pwm
     FreeRTOS-Kernel
     FreeRTOS-Kernel-Heap4
 )

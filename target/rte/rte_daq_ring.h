@@ -1,9 +1,10 @@
-/* Coherent DAQ data path (RTE-005).
+/* Coherent DAQ data path (RTE-005): single-producer / single-consumer ring of
+ * fixed-size frames in SRAM2.
  *
- * The Core 0 fast-path ISR snapshots complete DAQ frames into this SRAM2 ring;
- * the Core 1 XCPlite task drains it over USB CDC. Single-producer /
- * single-consumer, no locks — index ordering alone must guarantee frame
- * coherence (no torn frames) and avoid cross-bank contention.
+ * The core 0 fast ISR pushes whole-frame snapshots; the core 1 XCP task pops
+ * them. Index ordering alone guarantees frame coherence — no locks, no torn
+ * frames. A full ring drops the new frame and counts it (never blocks the
+ * fast path). Frame size must be a multiple of 4.
  */
 
 #ifndef PICODESK_RTE_DAQ_RING_H
@@ -13,12 +14,26 @@
 #include <stddef.h>
 #include <stdint.h>
 
-void rte_daq_ring_init(void);
+typedef struct {
+    uint8_t *buf;
+    uint32_t frame_size;
+    uint32_t capacity;            /* frames; power of two NOT required */
+    volatile uint32_t head;       /* frames produced, written by core 0 only */
+    volatile uint32_t tail;       /* frames consumed, written by core 1 only */
+    volatile uint32_t dropped;    /* full-ring drops (BLD-003) */
+} rte_daq_ring_t;
 
-/* Core 0 only, from the fast ISR. Drops the frame (and counts it) when full. */
-bool rte_daq_ring_push(const void *frame, size_t len);
+void rte_daq_ring_init(rte_daq_ring_t *ring, void *buf, size_t buf_bytes,
+                       size_t frame_size);
 
-/* Core 1 only, from the XCPlite task. */
-bool rte_daq_ring_pop(void *frame, size_t max_len, size_t *out_len);
+/* Producer (core 0 ISR only). Returns false and counts a drop when full. */
+bool rte_daq_ring_push(rte_daq_ring_t *ring, const void *frame);
+
+/* Consumer (core 1 only). Returns false when empty. */
+bool rte_daq_ring_pop(rte_daq_ring_t *ring, void *frame_out);
+
+static inline uint32_t rte_daq_ring_count(const rte_daq_ring_t *ring) {
+    return ring->head - ring->tail;
+}
 
 #endif /* PICODESK_RTE_DAQ_RING_H */

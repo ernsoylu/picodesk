@@ -8,6 +8,14 @@
 #ifndef PICODESK_RTE_SECTIONS_H
 #define PICODESK_RTE_SECTIONS_H
 
+#ifdef PICODESK_NATIVE
+/* Native test build (tests/native): no banked memory, attributes vanish. */
+#define RTE_SHARED
+#define RTE_CORE0_BSS
+#define RTE_CORE1_BSS
+#define RTE_NOINIT_FAULT
+#else
+
 /* SRAM2: cross-core RTE data — seqlocks, DAQ ring, CAL pages, telemetry,
  * FreeRTOS heap. */
 #define RTE_SHARED __attribute__( ( section( ".rte_shared" ) ) )
@@ -20,5 +28,7 @@
 
 /* SRAM2, never cleared: HardFault record storage (BLD-006). */
 #define RTE_NOINIT_FAULT __attribute__( ( section( ".noinit_fault" ) ) )
+
+#endif /* PICODESK_NATIVE */
 
 #endif /* PICODESK_RTE_SECTIONS_H */
