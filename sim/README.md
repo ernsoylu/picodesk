@@ -32,16 +32,46 @@ the firmware's own telemetry stream.
 
 ## What the suite verifies (`picodesk.robot`)
 
+`picodesk.robot` — the hand-written spike firmware:
+
 | Test | Phase | Requirements |
 |---|---|---|
 | Boot And 1kHz Fast Dispatch | P0/P1 | SMP boot, RTE-002 (dhb≈1000, ovr=0) |
 | Rate Groups And RTE Primitives Healthy | P1/P2 | RTE-002 ratios, RTE-004 (slf=0), RTE-005 (daq>0, drop=0) |
 | CAL Page Transactional Switch | P2/P3 | RTE-003 (cal_sw≥1, switched kp active, ovr=0 throughout) |
 
-What emulation deliberately does NOT cover: NFR-1 jitter (virtual time is
-not real time — logic analyzer on hardware is the truth), USB/XCP transport
-(unmodeled), and analog behavior. Timing numbers from the sim are functional
-checks only.
+`picodesk_gen.robot` — firmware produced by `picodesk.rtegen`:
+
+| Test | Phase | Requirements |
+|---|---|---|
+| Generated RTE Runs The Full Mesh | P5 (M1) | RTE-002/004/005 on generated code; the ASW↔ASW round trip closes through both seqlock buses |
+
+`picodesk_faults.robot` — fault-injection drills:
+
+| Test | Phase | Requirements |
+|---|---|---|
+| Assert Failure Survives Reset And Is Reported | P6 | BLD-006 (record persists across the watchdog reset, file/line/heartbeat captured) |
+| Fault Record Is Consumed After Reporting | P6 | BLD-006 (no stale re-reporting) |
+| Wedged Fast Path Trips The Cross-Core Watchdog | P6 | BLD-007 (heartbeat stalls while core 1 stays healthy → reset) |
+| Stalled Monitor Task Trips The Watchdog | P6 | BLD-007 (hardware backstop) |
+| Healthy System Keeps Feeding The Watchdog | P6 | BLD-007 negative control |
+
+## What emulation deliberately does NOT cover
+
+- **NFR-1 jitter and all timing budgets.** Virtual time is not real time; the
+  logic analyzer on hardware is the only truth.
+- **USB / XCP transport.** The RP2040 USB block is unmodeled (see the
+  `PICODESK_SIM` build above); the XCP protocol core is covered natively.
+- **HardFault exception dispatch (BLD-006).** Renode 1.16.1's Cortex-M model
+  halts the core with "CPU abort" on a fetch from unmapped memory rather than
+  vectoring to the HardFault handler, so the naked handler's stacked-frame
+  extraction is a hardware-only gate. Everything downstream of it — record
+  write, watchdog reboot, persistence across reset, boot report — is proven
+  by the assert drill, which shares that whole path. Three injection
+  mechanisms were tried before settling on this split; the two rejected ones
+  (unaligned load, undefined instruction) were not trapped at all, which
+  would have made the drill silently vacuous.
+- **Analog behavior.** ADC/PWM are functional stubs.
 
 ## Running locally
 

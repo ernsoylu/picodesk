@@ -12,8 +12,11 @@
 #include "task.h"
 #include "pico/stdlib.h"
 
+#include "fault_inject.h"
+#include "fault_record.h"
 #include "hal.h"
 #include "rte.h"
+#include "rte_watchdog.h"
 #include "rte_sections.h"
 #include "spike_models.h"
 
@@ -29,6 +32,8 @@ static StackType_t s_stack_xcp[RATE_TASK_STACK_WORDS] RTE_CORE1_BSS;
 static StaticTask_t s_tcb_xcp RTE_CORE1_BSS;
 static StackType_t s_stack_stats[RATE_TASK_STACK_WORDS] RTE_CORE1_BSS;
 static StaticTask_t s_tcb_stats RTE_CORE1_BSS;
+static StackType_t s_stack_wdg[RATE_TASK_STACK_WORDS] RTE_CORE1_BSS;
+static StaticTask_t s_tcb_wdg RTE_CORE1_BSS;
 
 /* Per-task seqlock shadows (RTE-001), core 1's bank. */
 static spike_fast_bus_t s_shadow_rate10 RTE_CORE1_BSS;
@@ -75,6 +80,7 @@ static void stats_task(void *arg) {
 
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(1000));
+        fault_inject_poll(); /* BLD-006/BLD-007 drill console */
         iteration++;
 
         /* Exercise the CAL page handshake end to end (RTE-003): edit the
@@ -114,9 +120,15 @@ static void stats_task(void *arg) {
     }
 }
 
+/* Fault records carry the fast-loop heartbeat (BLD-006 diagnostics). */
+volatile uint32_t *fault_heartbeat_source(void) {
+    return &g_rte_telemetry.heartbeat;
+}
+
 int main(void) {
     stdio_init_all();
     printf("PicoDesk RTE spike boot\n");
+    fault_report_boot(); /* post-mortem from a previous run (BLD-006) */
     rte_init();
     hal_init();
 
@@ -132,12 +144,19 @@ int main(void) {
                                            NULL, 1, s_stack_xcp, &s_tcb_xcp);
     vTaskCoreAffinitySet(s_h_rate10, CORE1_AFFINITY_MASK);
     vTaskCoreAffinitySet(s_h_rate100, CORE1_AFFINITY_MASK);
+    /* Cross-core watchdog monitor, highest app priority so a busy core 1
+     * can never starve the feed (BLD-007). */
+    TaskHandle_t h_wdg = xTaskCreateStatic(
+        rte_watchdog_task, "wdg", RATE_TASK_STACK_WORDS,
+        (void *) &g_rte_telemetry.heartbeat, 5, s_stack_wdg, &s_tcb_wdg);
     vTaskCoreAffinitySet(h_xcp, CORE1_AFFINITY_MASK);
     vTaskCoreAffinitySet(h_stats, CORE1_AFFINITY_MASK);
+    vTaskCoreAffinitySet(h_wdg, CORE1_AFFINITY_MASK);
 
     /* Arm the 1 kHz fast path on this core (core 0). Fires immediately; task
      * notification stays gated until stats_task registers the handles. */
     rte_dispatch_start(1000);
+    rte_watchdog_init(); /* BLD-007: monitor must now feed within the timeout */
 
     vTaskStartScheduler(); /* must be called on core 0; port launches core 1 */
     for (;;) {

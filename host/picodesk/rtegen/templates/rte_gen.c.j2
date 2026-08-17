@@ -24,11 +24,14 @@
 #include "hardware/timer.h"
 #include "pico/platform.h"
 
+#include "fault_inject.h"
+#include "fault_record.h"
 #include "hal.h"
 #include "rte_daq_ring.h"
 #include "rte_gen.h"
 #include "rte_sections.h"
 #include "rte_seqlock.h"
+#include "rte_watchdog.h"
 
 #define RTE_GEN_ALARM_NUM 1
 #define RTE_GEN_ALARM_IRQ TIMER_IRQ_1
@@ -94,10 +97,17 @@ static StackType_t s_stack_daq[RTE_GEN_TASK_STACK_WORDS] RTE_CORE1_BSS;
 static StaticTask_t s_tcb_daq RTE_CORE1_BSS;
 static StackType_t s_stack_stats[RTE_GEN_TASK_STACK_WORDS] RTE_CORE1_BSS;
 static StaticTask_t s_tcb_stats RTE_CORE1_BSS;
+static StackType_t s_stack_wdg[RTE_GEN_TASK_STACK_WORDS] RTE_CORE1_BSS;
+static StaticTask_t s_tcb_wdg RTE_CORE1_BSS;
 
 extern uint32_t __core0_bss_start__, __core0_bss_end__;
 extern uint32_t __core1_bss_start__, __core1_bss_end__;
 extern uint32_t __rte_shared_start__, __rte_shared_end__;
+
+/* Fault records carry the fast-loop heartbeat (BLD-006 diagnostics). */
+volatile uint32_t *fault_heartbeat_source(void) {
+    return &g_rte_gen_telemetry.heartbeat;
+}
 
 void rte_gen_init(void) {
     /* NOLOAD banks carry random power-on data: zero them so every routed
@@ -129,6 +139,13 @@ static void __not_in_flash_func(rte_gen_fast_isr)(void) {
     const uint32_t t_entry = timer_hw->timerawl;
     hw_clear_bits(&timer_hw->intr, 1u << RTE_GEN_ALARM_NUM);
     gpio_put(RTE_GEN_PIN_ISR_ACTIVE, 1);
+
+    if (fault_inject_isr_wedged()) {
+        /* Injected wedge (BLD-007 drill): the heartbeat stops advancing
+         * while core 1 stays healthy; the monitor must catch it. */
+        for (;;) {
+        }
+    }
 
     const uint32_t late = t_entry - s_deadline_us;
     if (late < 0x80000000u && late > g_rte_gen_telemetry.dispatch_jitter_max_us) {
@@ -283,6 +300,7 @@ static void rte_gen_stats_task(void *arg) {
     uint32_t last_hb = 0;
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(1000));
+        fault_inject_poll(); /* BLD-006/BLD-007 drill console */
         const uint32_t hb = g_rte_gen_telemetry.heartbeat;
         /* Benign cross-bank debug reads: 32-bit-or-smaller, torn-free. */
         printf("RTEGEN hb=%lu dhb=%lu exec_max=%lu ovr=%lu slf=%lu "
@@ -328,6 +346,11 @@ void rte_gen_start(void) {
     TaskHandle_t h_stats = xTaskCreateStatic(rte_gen_stats_task, "stats",
         RTE_GEN_TASK_STACK_WORDS, NULL, 1, s_stack_stats, &s_tcb_stats);
     vTaskCoreAffinitySet(h_stats, RTE_GEN_CORE1_MASK);
+    /* Cross-core watchdog monitor, highest app priority (BLD-007). */
+    TaskHandle_t h_wdg = xTaskCreateStatic(rte_watchdog_task, "wdg",
+        RTE_GEN_TASK_STACK_WORDS, (void *) &g_rte_gen_telemetry.heartbeat, 5,
+        s_stack_wdg, &s_tcb_wdg);
+    vTaskCoreAffinitySet(h_wdg, RTE_GEN_CORE1_MASK);
 
     /* Arm the fast path on the calling core (core 0). Notifications stay
      * gated until the handles publish below. */
@@ -338,6 +361,7 @@ void rte_gen_start(void) {
     timer_hw->alarm[RTE_GEN_ALARM_NUM] = s_deadline_us;
     hw_set_bits(&timer_hw->inte, 1u << RTE_GEN_ALARM_NUM);
     irq_set_enabled(RTE_GEN_ALARM_IRQ, true);
+    rte_watchdog_init(); /* BLD-007 */
 
 {% for group in slow_groups %}
     s_h_{{ group.name }} = h_{{ group.name }};

@@ -11,33 +11,25 @@
 #include "FreeRTOS.h"
 #include "task.h"
 
+#include "fault_record.h"
 #include "rte_sections.h"
 
-volatile uint32_t g_assert_info[3] RTE_NOINIT_FAULT; /* magic, file, line */
+/* All three land in the same post-mortem record (BLD-006) and reboot
+ * through the watchdog, so the next boot prints what happened. */
 
 void vAssertCalled(const char *file, int line) {
-    g_assert_info[0] = 0xDEAD5555u;
-    g_assert_info[1] = (uint32_t) (uintptr_t) file;
-    g_assert_info[2] = (uint32_t) line;
-    __asm volatile("cpsid i");
-    for (;;) {
-    }
+    fault_capture_sw(FAULT_KIND_ASSERT, (uint32_t) (uintptr_t) file,
+                     (uint32_t) line);
 }
 
 void vApplicationStackOverflowHook(TaskHandle_t task, char *name) {
     (void) task;
-    (void) name;
-    taskDISABLE_INTERRUPTS();
-    for (;;) {
-        __asm volatile("bkpt #0");
-    }
+    fault_capture_sw(FAULT_KIND_STACK_OVERFLOW,
+                     (uint32_t) (uintptr_t) name, 0);
 }
 
 void vApplicationMallocFailedHook(void) {
-    taskDISABLE_INTERRUPTS();
-    for (;;) {
-        __asm volatile("bkpt #0");
-    }
+    fault_capture_sw(FAULT_KIND_MALLOC_FAILED, 0, 0);
 }
 
 /* Idle/timer service tasks may run on either core, so their stacks live in

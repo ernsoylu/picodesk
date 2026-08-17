@@ -10,12 +10,14 @@
 #include "task.h"
 #include "pico/stdlib.h"
 
+#include "fault_record.h"
 #include "hal.h"
 #include "rte_gen.h"
 
 int main(void) {
     stdio_init_all();
     printf("PicoDesk generated RTE boot\n");
+    fault_report_boot(); /* post-mortem from a previous run (BLD-006) */
     rte_gen_init();
     hal_init();
     rte_gen_start();

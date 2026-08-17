@@ -120,6 +120,35 @@ jobs:
           "${{ runner.temp }}/renode/renode_1.16.1_portable/renode-test" \
             --variable "FIRMWARE:$GITHUB_WORKSPACE/build-gen/picodesk_gen_firmware.elf" \
             sim/picodesk_gen.robot
+      - name: Run fault-injection drills (P6, BLD-006/BLD-007)
+        run: |
+          "${{ runner.temp }}/renode/renode_1.16.1_portable/renode-test" \
+            --variable "FIRMWARE:$GITHUB_WORKSPACE/build-sim/picodesk_firmware.elf" \
+            sim/picodesk_faults.robot
+      - name: Sizing report gate + map calibration (P6, BLD-004)
+        run: |
+          pip install pyelftools
+          python tools/sizing_report.py \
+            --descriptor tests/fixtures/gen_ws/descriptor.json \
+            --routing tests/fixtures/gen_ws/routing.json \
+            --map build-gen/picodesk_gen_firmware.elf.map
+      - name: A2L generation + DWARF patching (P6, CAL-002)
+        run: |
+          python tools/make_a2l.py \
+            --descriptor tests/fixtures/gen_ws/descriptor.json \
+            --elf build-gen/picodesk_gen_firmware.elf \
+            --out build-gen/picodesk.a2l
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-workspace
+          path: |
+            build-gen-src/*.c
+            build-gen-src/*.h
+            build-gen/picodesk.a2l
+            build-gen/picodesk_gen_firmware.elf.map
+          if-no-files-found: ignore
       - name: Upload Robot logs
         if: always()
         uses: actions/upload-artifact@v4

@@ -33,6 +33,11 @@ add_compile_options(
     -ffile-prefix-map=${PICO_SDK_PATH}=PICO_SDK
     -ffile-prefix-map=${FREERTOS_KERNEL_PATH}=FREERTOS
     -ffile-prefix-map=${CMAKE_BINARY_DIR}=BUILD
+    # CAL-002: the ELF must carry DWARF so A2L addresses (including inner
+    # members of nested structs) can be resolved. Debug info never reaches
+    # the .uf2 — only loadable sections do — so this costs no flash and,
+    # with the prefix maps above, does not disturb reproducibility.
+    -g
 )
 add_compile_definitions(PICO_PROGRAM_BUILD_DATE="reproducible")
 
@@ -46,6 +51,8 @@ set(PICODESK_SOURCES
     src/freertos_hooks.c
     src/spike_models.c
     src/hardfault.c
+    src/fault_inject.c
+    rte/rte_watchdog.c
     rte/rte_dispatch.c
     rte/rte_seqlock.c
     rte/rte_daq_ring.c
@@ -72,6 +79,7 @@ target_link_libraries(picodesk_firmware
     hardware_gpio
     hardware_adc
     hardware_pwm
+    hardware_watchdog
     FreeRTOS-Kernel
     FreeRTOS-Kernel-Heap4
 )
@@ -94,6 +102,8 @@ if(PICODESK_GEN_DIR)
         src/main_gen.c
         src/freertos_hooks.c
         src/hardfault.c
+        src/fault_inject.c
+        rte/rte_watchdog.c
         rte/rte_seqlock.c
         rte/rte_daq_ring.c
         rte/rte_calpage.c
@@ -111,6 +121,7 @@ if(PICODESK_GEN_DIR)
         hardware_gpio
         hardware_adc
         hardware_pwm
+        hardware_watchdog
         FreeRTOS-Kernel
         FreeRTOS-Kernel-Heap4
     )

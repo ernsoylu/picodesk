@@ -29,6 +29,8 @@
 #include "rte_seqlock.h"
 #include "spike_models.h"
 
+#include "fault_inject.h"
+
 #define RTE_ALARM_NUM 1
 #define RTE_ALARM_IRQ TIMER_IRQ_1
 
@@ -102,6 +104,13 @@ static void __not_in_flash_func(rte_fast_tick_isr)(void) {
     const uint32_t t_entry = timer_hw->timerawl;
     hw_clear_bits(&timer_hw->intr, 1u << RTE_ALARM_NUM);
     gpio_put(RTE_PIN_ISR_ACTIVE, 1);
+
+    if (fault_inject_isr_wedged()) {
+        /* Injected wedge (BLD-007 drill): stop advancing the heartbeat while
+         * core 1 keeps running — the cross-core monitor must catch it. */
+        for (;;) {
+        }
+    }
 
     /* Dispatch latency relative to the programmed deadline (NFR-1 proxy). */
     const uint32_t late = t_entry - s_deadline_us;
