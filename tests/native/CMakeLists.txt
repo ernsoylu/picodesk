@@ -12,7 +12,8 @@ add_compile_definitions(PICODESK_NATIVE)
 link_libraries(pthread)
 
 set(RTE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../target/rte)
-include_directories(${RTE_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
+set(XCP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../target/xcp)
+include_directories(${RTE_DIR} ${XCP_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
 
 enable_testing()
 
@@ -20,3 +21,8 @@ foreach(t seqlock daq_ring calpage)
     add_executable(test_${t} test_${t}.c ${RTE_DIR}/rte_${t}.c)
     add_test(NAME ${t} COMMAND test_${t})
 endforeach()
+
+# Phase 3: XCP protocol core (CAL-001 interim slave) against real CAL pages.
+add_executable(test_xcp_core test_xcp_core.c ${XCP_DIR}/xcp_core.c
+               ${RTE_DIR}/rte_calpage.c)
+add_test(NAME xcp_core COMMAND test_xcp_core)

@@ -246,3 +246,13 @@ void rte_cal_get_active(spike_cal_t *out) {
 uint32_t rte_cal_switch_count(void) {
     return s_calpage.switch_count;
 }
+
+uint32_t rte_cal_active_index(void) {
+    return s_calpage.active_idx & 1u;
+}
+
+void *rte_cal_logical_base(void) {
+    /* Fixed logical CAL window for the A2L: always page A's address,
+     * independent of which page is currently active (RTE-003). */
+    return &s_cal_page_a;
+}

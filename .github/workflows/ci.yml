@@ -40,9 +40,9 @@ jobs:
       - name: Dependency checker report (informational)
         run: python -m picodesk.buildsys.dependency_checker --json
 
-  # ---- Phase 2: RTE primitives, native unit + pthread stress tests --------
+  # ---- Phases 2-3: RTE primitives + XCP protocol core, native tests -------
   native-rte:
-    name: native / RTE primitive tests (P2)
+    name: native / RTE + XCP protocol tests (P2-P3)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -70,5 +70,7 @@ void rte_cal_request_switch(void);        /* core 1: arm transactional swap */
 bool rte_cal_sync_offline(void);          /* core 1: re-base after commit   */
 void rte_cal_get_active(spike_cal_t *out);/* core 1 diagnostic snapshot     */
 uint32_t rte_cal_switch_count(void);
+uint32_t rte_cal_active_index(void);      /* 0/1, for XCP GET_CAL_PAGE      */
+void *rte_cal_logical_base(void);         /* fixed A2L CAL window address   */
 
 #endif /* PICODESK_RTE_H */

@@ -25,8 +25,8 @@ static StackType_t s_stack_rate10[RATE_TASK_STACK_WORDS] RTE_CORE1_BSS;
 static StaticTask_t s_tcb_rate10 RTE_CORE1_BSS;
 static StackType_t s_stack_rate100[RATE_TASK_STACK_WORDS] RTE_CORE1_BSS;
 static StaticTask_t s_tcb_rate100 RTE_CORE1_BSS;
-static StackType_t s_stack_daq[RATE_TASK_STACK_WORDS] RTE_CORE1_BSS;
-static StaticTask_t s_tcb_daq RTE_CORE1_BSS;
+static StackType_t s_stack_xcp[RATE_TASK_STACK_WORDS] RTE_CORE1_BSS;
+static StaticTask_t s_tcb_xcp RTE_CORE1_BSS;
 static StackType_t s_stack_stats[RATE_TASK_STACK_WORDS] RTE_CORE1_BSS;
 static StaticTask_t s_tcb_stats RTE_CORE1_BSS;
 
@@ -59,18 +59,8 @@ static void rate100_task(void *arg) {
     }
 }
 
-static void daq_task(void *arg) {
-    (void) arg;
-    /* Phase 3 hands these frames to the XCP slave; for now drain + discard.
-     * 5 ms cadence x 256-frame ring leaves ample headroom at 1 kHz. */
-    spike_daq_frame_t frame;
-    for (;;) {
-        vTaskDelay(pdMS_TO_TICKS(5));
-        while (rte_daq_pop_frame(&frame)) {
-            /* consumed */
-        }
-    }
-}
+/* XCP slave task (target/xcp/xcp_cdc_task.c): CDC transport + DAQ drain. */
+extern void xcp_task(void *arg);
 
 static void stats_task(void *arg) {
     (void) arg;
@@ -134,13 +124,14 @@ int main(void) {
                                    NULL, 4, s_stack_rate10, &s_tcb_rate10);
     s_h_rate100 = xTaskCreateStatic(rate100_task, "rate100", RATE_TASK_STACK_WORDS,
                                     NULL, 3, s_stack_rate100, &s_tcb_rate100);
-    TaskHandle_t h_daq = xTaskCreateStatic(daq_task, "daq", RATE_TASK_STACK_WORDS,
-                                           NULL, 2, s_stack_daq, &s_tcb_daq);
     TaskHandle_t h_stats = xTaskCreateStatic(stats_task, "stats", RATE_TASK_STACK_WORDS,
-                                             NULL, 1, s_stack_stats, &s_tcb_stats);
+                                             NULL, 2, s_stack_stats, &s_tcb_stats);
+    /* XCP at the lowest application priority (BLD-005). */
+    TaskHandle_t h_xcp = xTaskCreateStatic(xcp_task, "xcp", RATE_TASK_STACK_WORDS,
+                                           NULL, 1, s_stack_xcp, &s_tcb_xcp);
     vTaskCoreAffinitySet(s_h_rate10, CORE1_AFFINITY_MASK);
     vTaskCoreAffinitySet(s_h_rate100, CORE1_AFFINITY_MASK);
-    vTaskCoreAffinitySet(h_daq, CORE1_AFFINITY_MASK);
+    vTaskCoreAffinitySet(h_xcp, CORE1_AFFINITY_MASK);
     vTaskCoreAffinitySet(h_stats, CORE1_AFFINITY_MASK);
 
     /* Arm the 1 kHz fast path on this core (core 0). Fires immediately; task

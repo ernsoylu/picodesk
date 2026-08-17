@@ -45,9 +45,12 @@ add_executable(picodesk_firmware
     rte/rte_daq_ring.c
     rte/rte_calpage.c
     hal/hal_rp2040.c
+    xcp/xcp_core.c
+    xcp/xcp_cdc_task.c
+    xcp/usb_descriptors.c
 )
 
-target_include_directories(picodesk_firmware PRIVATE rte config src hal)
+target_include_directories(picodesk_firmware PRIVATE rte config src hal xcp)
 
 target_compile_options(picodesk_firmware PRIVATE -Wall -Werror=date-time)
 
@@ -59,6 +62,8 @@ target_link_libraries(picodesk_firmware
     hardware_gpio
     hardware_adc
     hardware_pwm
+    tinyusb_device
+    tinyusb_board
     FreeRTOS-Kernel
     FreeRTOS-Kernel-Heap4
 )
