@@ -2,7 +2,7 @@
 
 Builds stay disabled in the GUI until every *required* check passes. Version
 floors come from the SRS section 8 matrix: ARM GCC 12.2.rel1 (exact minor pin),
-CMake >= 3.20, Pico SDK >= 1.5.1. MATLAB is reported but not required — it is
+CMake >= 3.20, Pico SDK >= 1.5.1, Python 3.9-3.12 (MATLAB R2025b). MATLAB is reported but not required — it is
 only needed for model extraction, not for firmware builds.
 
 Also usable standalone:  python -m picodesk.buildsys.dependency_checker [--strict] [--json]
@@ -22,7 +22,7 @@ from pathlib import Path
 ARM_GCC_PIN = (12, 2)
 CMAKE_MIN = (3, 20)
 PICO_SDK_MIN = (1, 5, 1)
-PYTHON_RANGE = ((3, 9), (3, 12))
+PYTHON_RANGE = ((3, 9), (3, 13))  # R2025b engine supports 3.9-3.12
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _DEFAULT_SDK = _REPO_ROOT / "external" / "pico-sdk"
@@ -119,7 +119,7 @@ def check_python() -> DependencyStatus:
     ver = sys.version_info[:3]
     lo, hi = PYTHON_RANGE
     ok = lo <= ver[:2] < hi
-    detail = "" if ok else "MATLAB Engine requires Python 3.9-3.11 (SRS section 8)"
+    detail = "" if ok else "MATLAB Engine requires Python 3.9-3.12 (SRS section 8)"
     return DependencyStatus("python", True, True, ".".join(map(str, ver)), ok, detail)
 
 

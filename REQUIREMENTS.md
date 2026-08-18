@@ -1,7 +1,15 @@
-# Software Requirements Specification (SRS) v7.0
+# Software Requirements Specification (SRS) v7.1
 
 **Python-MATLAB Virtual Functional Bus (VFB) & Calibration Toolchain for RP2040**
 
+> **Amendments since v7.0**
+> - **§8 MATLAB / Python versions (v7.1).** The pinned MATLAB release is now
+>   **R2025b** — a project decision: R2025b is the release actually in use, so
+>   pinning to R2023b–R2024b would have validated against a toolchain nobody
+>   runs. Python widens to 3.9–3.12 to match that release's engine bindings.
+> - **§8 XCPlite licence (v7.1).** Corrected from Apache-2.0 to **MIT**;
+>   upstream `vectorgrp/XCPlite` relicensed (© 2026 Vector Informatik).
+>
 > This is the authoritative requirements baseline for PicoDesk. Every feature, design decision,
 > and code review must trace back to a requirement ID in this document. Changes to this document
 > require a version bump and changelog entry.
@@ -107,14 +115,14 @@ This toolchain acts as a lightweight **Virtual Functional Bus (VFB)** (defined h
 
 | Dependency | Required Version | Architectural Note & Licensing |
 | --- | --- | --- |
-| **MATLAB / ERT** | R2023b – R2024b | Defines supported Python Engine bindings. Commercial License required. |
-| **Python** | 3.9 – 3.11 | Must align exactly with MATLAB Engine release. |
+| **MATLAB / ERT** | R2025b | Pinned to the release in use. Defines supported Python Engine bindings. Commercial License required. |
+| **Python** | 3.9 – 3.12 | Must align exactly with MATLAB Engine release (R2025b supports 3.9–3.12). |
 | **PyQt** | PyQt6 / Qt 6.5+ | Async UI threading. (GPL/Commercial). |
 | **RP2040 SDK** | v1.5.1+ | Hardware timer and spinlock APIs. (BSD-3-Clause). |
 | **FreeRTOS Kernel** | v11.1.0+ (SMP) | Stable `configNUMBER_OF_CORES` behavior. (MIT). |
 | **ARM GCC** | 12.2.rel1 | Standard cross-compiler; dictates DWARF parsing format. |
 | **CMake** | 3.20+ | Required by Pico SDK. |
-| **Vector XCPlite** | v5.x+ | Core 1 XCP Slave. *(Note: Vector provides this as Open Source / Apache 2.0, but license terms must be retained in source).* |
+| **Vector XCPlite** | v5.x+ | Core 1 XCP Slave. *(Note: Vector provides this as Open Source / **MIT** — corrected in v7.1, upstream relicensed — but license terms must be retained in source).* |
 | **pyxcp** | 0.21+ | XCP Master implemented in Python. (MIT). |
 | **pyelftools** | 0.31+ | DWARF/ELF parsing for A2L post-processing. (Public Domain). |
 | **asammdf** | 7.4+ | ASAM MDF4 file generation for DAQ logging. (LGPL). |

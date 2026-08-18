@@ -8,9 +8,7 @@ Covers what the fake-engine suite cannot:
   - hash gating with a real engine (zero engine calls on re-scan, NFR-2)
   - session survives a SIGKILLed MATLAB process (GUI-002)
 
-Note: this machine runs R2025b, outside the SRS section 8 pin
-(R2023b-R2024b); test_alignment_flags_untested_release documents that the
-checker reports it. Whether to widen the SRS matrix is a spec decision.
+R2025b is the pinned release (SRS section 8, amended in v7.1).
 """
 
 from __future__ import annotations
@@ -116,9 +114,23 @@ def test_session_survives_engine_kill(session) -> None:
     assert new_pid != pid
 
 
-def test_alignment_flags_untested_release() -> None:
-    problem = check_python_alignment("R2025b")
-    assert problem is not None and "R2025b" in problem
+def test_pinned_release_is_accepted() -> None:
+    """R2025b is the pinned release (SRS v7.1): the checker must accept it
+    on any Python in its supported range."""
+    import sys
+
+    from picodesk.matlab_bridge.session import PINNED_RELEASE
+
+    assert PINNED_RELEASE == "R2025b"
+    problem = check_python_alignment(PINNED_RELEASE)
+    if sys.version_info[:2] in ((3, 9), (3, 10), (3, 11), (3, 12)):
+        assert problem is None, problem
+    else:
+        assert problem is not None
+
+
+def test_unknown_release_is_still_flagged() -> None:
+    assert "R2019b" in (check_python_alignment("R2019b") or "")
 
 
 def test_ert_codegen_produces_step_code(session, workspace, tmp_path) -> None:

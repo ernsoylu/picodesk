@@ -6,8 +6,8 @@ the MATLAB-side path setup, and retries — so a MATLAB crash costs one restart
 instead of a failed workspace operation.
 
 matlabengine is imported lazily and is not a declared dependency: its version
-is locked to the locally installed MATLAB release (R2023b-R2024b, SRS
-section 8). Everything above the `EngineProtocol` seam is testable without
+is locked to the locally installed MATLAB release (R2025b, SRS section 8
+as amended in v7.1). Everything above the `EngineProtocol` seam is testable without
 MATLAB (tests/test_matlab_bridge.py uses a fake engine).
 """
 
@@ -20,10 +20,17 @@ from typing import Any, Protocol
 #: MATLAB releases whose Python engine bindings support which interpreters.
 #: (SRS section 8: Python must align exactly with the MATLAB release.)
 SUPPORTED_PYTHON = {
+    # R2025b is the pinned release (SRS v7.1). The older entries stay so a
+    # site still on them gets a precise message rather than "unknown".
     "R2023b": ((3, 9), (3, 10), (3, 11)),
     "R2024a": ((3, 9), (3, 10), (3, 11)),
     "R2024b": ((3, 9), (3, 10), (3, 11)),
+    "R2025a": ((3, 9), (3, 10), (3, 11), (3, 12)),
+    "R2025b": ((3, 9), (3, 10), (3, 11), (3, 12)),
 }
+
+#: The release this project validates against (SRS section 8, v7.1).
+PINNED_RELEASE = "R2025b"
 
 #: Directory with the MATLAB-side helpers (picodesk_extract.m, ...).
 MATLAB_FUNCTIONS_DIR = Path(__file__).parent / "matlab"
@@ -122,6 +129,6 @@ def _default_engine_factory() -> EngineProtocol:
     except ImportError as exc:
         raise MatlabSessionError(
             "matlabengine is not installed; install the package matching the "
-            "local MATLAB release (R2023b-R2024b)"
+            f"local MATLAB release (pinned: {PINNED_RELEASE})"
         ) from exc
     return matlab.engine.start_matlab()

@@ -5,7 +5,7 @@ dual-core RP2040 firmware: a PyQt6 GUI routes model signals over a Virtual Funct
 generates a multi-rate RTE in C, builds with the Pico SDK, and performs live XCP calibration/DAQ
 over USB CDC.
 
-The authoritative spec is **[REQUIREMENTS.md](REQUIREMENTS.md)** (SRS v7.0). Every feature and
+The authoritative spec is **[REQUIREMENTS.md](REQUIREMENTS.md)** (SRS v7.1). Every feature and
 design decision must trace to a requirement ID (e.g. `RTE-004`, `NFR-3`). Reference these IDs in
 commit messages, code comments on safety-critical sections, and test names.
 
@@ -13,7 +13,7 @@ commit messages, code comments on safety-critical sections, and test names.
 
 Two toolchain sides, one firmware target:
 
-- **Host side (Python 3.9–3.11):** PyQt6 GUI, persistent `matlab.engine` session, `.slx` hash-gated
+- **Host side (Python 3.9–3.12):** PyQt6 GUI, persistent `matlab.engine` session, `.slx` hash-gated
   batch extraction to a monolithic JSON descriptor, Jinja-style RTE code templating, CMake
   orchestration, `pyelftools` DWARF post-processing for A2L, `pyxcp` + `asammdf` for tuning/logging.
 - **Target side (RP2040, Cortex-M0+, 264 kB SRAM, no FPU):**
@@ -71,9 +71,9 @@ These are hard requirements; violating any of them is a bug even if the code "wo
 
 ## Toolchain versions (pinned — see REQUIREMENTS.md §8 for full matrix)
 
-MATLAB R2023b–R2024b (ERT), Python 3.9–3.11 (must match MATLAB Engine), PyQt6/Qt 6.5+,
+MATLAB R2025b (ERT), Python 3.9–3.12 (must match MATLAB Engine), PyQt6/Qt 6.5+,
 Pico SDK ≥ 1.5.1, FreeRTOS Kernel ≥ 11.1.0 (SMP), ARM GCC 12.2.rel1, CMake ≥ 3.20,
-Vector XCPlite v5.x (Apache 2.0 — retain license headers), pyxcp ≥ 0.21, pyelftools ≥ 0.31,
+Vector XCPlite (MIT — retain license headers), pyxcp ≥ 0.21, pyelftools ≥ 0.31,
 asammdf ≥ 7.4. Host platforms: Windows/Linux x64 only.
 
 ## Out of scope for v1.0 — do not build these
@@ -86,7 +86,7 @@ implementing it.
 
 ```
 picodesk/
-├── REQUIREMENTS.md          # SRS v7.0 — authoritative spec
+├── REQUIREMENTS.md          # SRS v7.1 — authoritative spec
 ├── host/                    # Python toolchain — pip install -e "host[dev]"
 │   ├── pyproject.toml
 │   └── picodesk/
@@ -113,7 +113,7 @@ Keep this section current as the structure evolves.
 
 ## Working conventions
 
-- Host code: Python 3.9-compatible syntax (no 3.12+ features), type hints throughout, PyQt6 UI work
+- Host code: Python 3.9-compatible syntax (the floor of the supported range), type hints throughout, PyQt6 UI work
   off the main thread for MATLAB/CMake calls (GUI-002/GUI-005 demand a responsive UI).
 - Target code: C11, Pico SDK idioms. Anything on the fast path gets scrutiny against invariants
   1–3 above before merge.

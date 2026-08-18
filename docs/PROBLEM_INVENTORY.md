@@ -5,7 +5,7 @@ blocks you and, within that, by what it cost or would have cost. Closed
 entries are kept deliberately: several describe traps that will recur, and
 the pattern at the end is the most useful thing in this file.
 
-Counts: **29 total — 10 open, 19 closed.**
+Counts: **29 total — 9 open, 20 closed.**
 
 ---
 
@@ -29,17 +29,15 @@ Everything downstream of the vector — record write, watchdog reboot,
 persistence across reset, boot report — is already proven by the assert
 drill, which shares that entire path.
 
-## Open — known limitations, not blockers (2)
+## Open — known limitations, not blockers (1)
 
 | ID | Problem | Where |
 |---|---|---|
-| O-11 | Validated on MATLAB R2025b; SRS pins R2023b–R2024b | `host/picodesk/matlab_bridge/session.py` |
 | O-12 | Interim XCP protocol core marked as Phase 3 debt | `target/xcp/xcp_core.h` |
 
-O-9 and O-10 are both **closed** (see C-7 and the array-signal work).
-O-11 is a spec decision — widen the matrix after testing a pinned release, or validate on
-one. The alignment checker flags the mismatch by design rather than
-silently accepting it.
+O-9 and O-10 are **closed** (see C-7 and the array-signal work). **O-11 is
+closed by decision**: R2025b is the release in use, so the SRS was amended
+to pin it (v7.1) rather than validate against a toolchain nobody runs.
 
 ---
 

@@ -7,8 +7,9 @@ name = "picodesk"
 version = "0.1.0"
 description = "Python-MATLAB Virtual Functional Bus & calibration toolchain for RP2040"
 readme = "README.md"
-# Python must align exactly with the MATLAB Engine release (SRS section 8).
-requires-python = ">=3.9,<3.12"
+# Python must align exactly with the MATLAB Engine release (SRS section 8,
+# v7.1: R2025b supports 3.9-3.12).
+requires-python = ">=3.9,<3.13"
 dependencies = [
     "PyQt6>=6.5",
     "pyxcp>=0.21",
@@ -18,7 +19,7 @@ dependencies = [
     "jsonschema>=4.17",
 ]
 # matlabengine is deliberately not declared: its version is locked to the locally
-# installed MATLAB release (R2023b-R2024b) and must be installed to match.
+# installed MATLAB release (R2025b) and must be installed to match.
 
 [project.optional-dependencies]
 dev = [
