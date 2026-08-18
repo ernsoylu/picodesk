@@ -7,6 +7,11 @@ name = "picodesk"
 version = "0.1.0"
 description = "Python-MATLAB Virtual Functional Bus & calibration toolchain for RP2040"
 readme = "README.md"
+# GPL-3.0-or-later follows from using PyQt6 under its GPL option (a project
+# decision; the commercial licence was declined). The firmware this toolchain
+# produces links no Qt and is not covered — see docs/THIRD_PARTY_LICENSES.md.
+license = "GPL-3.0-or-later"
+license-files = ["../LICENSE"]
 # Python must align exactly with the MATLAB Engine release (SRS section 8,
 # v7.1: R2025b supports 3.9-3.12).
 requires-python = ">=3.9,<3.13"

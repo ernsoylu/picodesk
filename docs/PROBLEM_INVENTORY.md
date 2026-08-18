@@ -5,13 +5,13 @@ blocks you and, within that, by what it cost or would have cost. Closed
 entries are kept deliberately: several describe traps that will recur, and
 the pattern at the end is the most useful thing in this file.
 
-Counts: **31 total — 8 open, 23 closed.**
+Counts: **31 total — 7 open, 24 closed.**
 
 ---
 
-## Open — blocks tagging v1.0 (7)
+## Open — blocks tagging v1.0 (6)
 
-Six need a physical RP2040. One needs a decision.
+All six need a physical RP2040.
 
 | ID | Problem | Requirement | Why it cannot close in CI |
 |---|---|---|---|
@@ -21,7 +21,6 @@ Six need a physical RP2040. One needs a decision.
 | O-4 | Sustained ≥ 50 signals at 100 Hz over USB CDC | CAL-001 | The RP2040 USB block is unmodeled in Renode |
 | O-5 | MDF4 recording from a live DAQ stream | GUI-012 | Depends on O-4 |
 | O-6 | HardFault **exception dispatch** | BLD-006 | Renode halts the core with "CPU abort" instead of vectoring |
-| O-8 | **Qt/PyQt licensing: GPL-3.0 or commercial** | — | Business decision; gates any proprietary distribution |
 
 All six now have a written procedure, wiring diagram and analysis script in
 [HARDWARE_CAMPAIGN.md](HARDWARE_CAMPAIGN.md), with the analysis unit-tested
@@ -46,8 +45,16 @@ throughput number is the only reason to prefer the library and it is the one
 thing emulation cannot measure.
 
 O-7, O-9 and O-10 are **closed** (see C-8, C-7, and the array-signal work).
-**O-11 is closed by decision**: R2025b is the release in use, so the SRS was
-amended to pin it (v7.1) rather than validate against a toolchain nobody runs.
+Two more are **closed by decision** rather than by work:
+
+- **O-11** — R2025b is the release in use, so the SRS was amended to pin it
+  (v7.1) rather than validate against a toolchain nobody runs.
+- **O-8** — Qt stays, under GPL-3.0; the commercial option was declined. The
+  consequence is that PicoDesk itself is GPL-3.0-or-later (root `LICENSE`),
+  and distributing a build carries a source offer. Internal use carries
+  nothing, because it is not distribution. The firmware image is untouched by
+  this: it links no Qt. See
+  [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
 
 ---
 

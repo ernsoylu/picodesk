@@ -99,6 +99,16 @@ class Sidebar(QWidget):
         self.toolchain_chip.set_elide_width(150)
         layout.addWidget(self.toolchain_chip)
 
+        # GPL-3.0 asks an interactive program to carry an Appropriate Legal
+        # Notice (section 5d): the licence and the absence of warranty, where
+        # the user will see it. PicoDesk is GPL because PyQt6 is used under its
+        # GPL option — see docs/THIRD_PARTY_LICENSES.md.
+        licence = QLabel("GPL-3.0-or-later · no warranty · see LICENSE")
+        licence.setObjectName("Muted")
+        licence.setStyleSheet(f"font-size:9px; color:{theme.TEXT_MUTED};")
+        licence.setWordWrap(True)
+        layout.addWidget(licence)
+
 
 class MainWindow(QMainWindow):
     def __init__(self, parent: QWidget | None = None) -> None:

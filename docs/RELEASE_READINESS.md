@@ -2,9 +2,12 @@
 
 **Status: not releasable as v1.0.** Everything the SRS specifies is
 implemented, and every requirement is verified as far as host testing and
-emulation can reach — but six gates need a physical RP2040, and one needs
-a licensing decision. Tagging v1.0 now would claim validation that has not
-happened.
+emulation can reach — but six gates need a physical RP2040. Tagging v1.0 now
+would claim validation that has not happened.
+
+Nothing else is outstanding: the licensing question is decided (GPL-3.0, see
+below), and the remaining substitution is a default flip that the same
+hardware session settles.
 
 This document says exactly what is done, what is not, and what closing the
 gap requires.
@@ -44,12 +47,13 @@ session is a matter of running it.
 | GUI-012 | MDF4 recording from a live DAQ stream | Pico + asammdf round trip |
 | BLD-006 | HardFault **exception dispatch** | Pico; Renode halts the core with "CPU abort" instead of vectoring. Everything downstream (record write, watchdog reboot, persistence across reset, boot report) is already proven by the assert drill, which shares that path. |
 
-### Licensing (1)
+### Licensing — decided, not open
 
-PyQt6 is GPL-3.0 or commercial. Distributing a PicoDesk binary built against
-the GPL build makes the whole application GPL. This is a business decision
-and gates any proprietary release. See
-[THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
+Qt stays, under **GPL-3.0**; the commercial option was declined. PicoDesk is
+therefore GPL-3.0-or-later (root `LICENSE`), and distributing a build carries
+a source offer under the same terms. Internal use carries no obligation,
+because it is not distribution — and the firmware image links no Qt, so the
+`.uf2` is unaffected. See [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
 
 ### Substitutions still owed
 
@@ -75,7 +79,9 @@ seed/key security, Apple Silicon.
 3. Run the 24 h RTE-004 soak and the CAL-001 throughput soak on the XCPlite
    build; if it holds, make `PICODESK_XCPLITE` the default and delete
    `target/xcp/`.
-4. Decide Qt licensing; assemble the licence bundle.
+4. Assemble the licence bundle: root `LICENSE`, the GPL-3.0 source offer,
+   and the third-party texts listed in
+   [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
 5. Re-run `tools/traceability.py`; when no hardware gates remain, tag v1.0.
 
 Until step 5 reports zero gates, the honest version number is a pre-release.

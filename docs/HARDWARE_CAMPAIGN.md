@@ -181,9 +181,10 @@ Then confirm the same record survives a power cycle, which is what
 
 **Artefact:** the UART log spanning injection, reset and boot report.
 
-## O-8 · Qt/PyQt licensing
+## Not on this bench
 
-Not a hardware gate — a decision. See
+O-8 (Qt/PyQt licensing) was never a hardware gate and is now decided: GPL-3.0,
+with PicoDesk itself GPL-3.0-or-later. See
 [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
 
 ## Closing out
