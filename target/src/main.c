@@ -16,6 +16,7 @@
 #include "fault_record.h"
 #include "hal.h"
 #include "rte.h"
+#include "rte_seqlock.h"
 #include "rte_watchdog.h"
 #include "rte_sections.h"
 #include "spike_models.h"
@@ -97,11 +98,13 @@ static void stats_task(void *arg) {
         }
 
         rte_cal_get_active(&cal_active);
+        /* Zero unless built with -DPICODESK_NFR3_PROBE=1 (see rte_port.h). */
+        g_rte_telemetry.crit_max_us = rte_crit_max_us();
         const uint32_t hb = g_rte_telemetry.heartbeat;
         /* Machine-parseable telemetry line (BLD-003); consumed by HIL scripts. */
         printf("RTE hb=%lu dhb=%lu exec_max=%lu jit_max=%lu ovr=%lu slf=%lu "
                "r10=%lu r100=%lu daq=%lu daq_depth=%lu daq_drop=%lu "
-               "cal_sw=%lu cal_kp=%ld hwm10=%u hwm100=%u\n",
+               "cal_sw=%lu cal_kp=%ld hwm10=%u hwm100=%u crit_max=%lu crit_n=%lu\n",
                (unsigned long) hb, (unsigned long) (hb - last_hb),
                (unsigned long) g_rte_telemetry.exec_max_us,
                (unsigned long) g_rte_telemetry.dispatch_jitter_max_us,
@@ -115,7 +118,9 @@ static void stats_task(void *arg) {
                (unsigned long) rte_cal_switch_count(),
                (long) cal_active.kp_q15,
                (unsigned) uxTaskGetStackHighWaterMark(s_h_rate10),
-               (unsigned) uxTaskGetStackHighWaterMark(s_h_rate100));
+               (unsigned) uxTaskGetStackHighWaterMark(s_h_rate100),
+               (unsigned long) g_rte_telemetry.crit_max_us,
+               (unsigned long) rte_crit_samples());
         last_hb = hb;
     }
 }

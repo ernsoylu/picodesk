@@ -5,7 +5,7 @@ blocks you and, within that, by what it cost or would have cost. Closed
 entries are kept deliberately: several describe traps that will recur, and
 the pattern at the end is the most useful thing in this file.
 
-Counts: **30 total — 8 open, 22 closed.**
+Counts: **31 total — 8 open, 23 closed.**
 
 ---
 
@@ -22,6 +22,11 @@ Six need a physical RP2040. One needs a decision.
 | O-5 | MDF4 recording from a live DAQ stream | GUI-012 | Depends on O-4 |
 | O-6 | HardFault **exception dispatch** | BLD-006 | Renode halts the core with "CPU abort" instead of vectoring |
 | O-8 | **Qt/PyQt licensing: GPL-3.0 or commercial** | — | Business decision; gates any proprietary distribution |
+
+All six now have a written procedure, wiring diagram and analysis script in
+[HARDWARE_CAMPAIGN.md](HARDWARE_CAMPAIGN.md), with the analysis unit-tested
+against synthetic captures (`tests/test_hil_analyze.py`). What is left is
+bench time, not method.
 
 O-6 is the only true emulator limitation rather than a timing gate.
 Everything downstream of the vector — record write, watchdog reboot,
@@ -111,7 +116,7 @@ against the real library through the real CDC framing, and CI boots the
 substituted firmware through the full Renode suite. Cost: +1.6 kB flash,
 +4.9 kB RAM.
 
-## Closed — validation defects (4)
+## Closed — validation defects (5)
 
 Green tests that proved nothing. Dangerous in proportion to the confidence
 they carry, and these carried safety confidence.
@@ -139,6 +144,17 @@ zero fixed point and the cross-core assertion failed. The fixture is now a
 closed loop with a setpoint, so a nonzero derate genuinely proves the slow
 model consumed fast-loop output and its result returned through the
 opposite seqlock bus.
+
+**V-5 · The NFR-3 telemetry field was never written.** `crit_max_us` sat in
+the telemetry struct labelled "NFR-3 probe" with nothing assigning it — a
+measurement that existed only as a comment. Instrumenting it then produced the
+V-1/V-2 shape immediately: the seqlock write finishes inside one 1 us tick, so
+the probe reported 0, which is indistinguishable from a probe that is not in
+the code path. Fixed by reporting a sample count alongside the max, so
+`crit_max=0 crit_n=6195` reads as "measured, too fast to resolve" and
+`crit_n=0` reads as "broken build" — and by a native test that asserts the
+writer actually invokes the probe, which is the part that can silently stop
+being true.
 
 ## Closed — third-party defects and limitations (7)
 
@@ -201,13 +217,15 @@ sentence into syntax errors.
 something** — pthread stress, emulated hardware, a 28-model workspace, or
 looking at a rendered screenshot. None were found by reading code.
 
-Three corollaries worth keeping:
+Four corollaries worth keeping:
 
 1. **Scale surfaces what fixtures hide.** C-1 was invisible in the
    two-model fixture and obvious at 28 models.
 2. **A test that cannot fail is worse than no test.** V-1 and V-2 were
    green and meaningless. Before trusting a drill, verify the mechanism
-   actually fires.
+   actually fires. V-5 adds the sharper form: a *measurement* whose healthy
+   reading is zero must also report whether it ran, or "fine" and "not
+   wired up" are the same number on the screen.
 3. **Tools that check code must themselves be checked.** C-6 was a blind
    spot in the auditor, and it concealed C-1; the same blind spot then
    concealed C-7. Both times the fix was to make the check *derive* its

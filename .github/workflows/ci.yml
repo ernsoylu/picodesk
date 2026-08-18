@@ -299,6 +299,12 @@ jobs:
           ninja -C build-xcp-b
           sha256sum build-xcp-a/picodesk_firmware.uf2 build-xcp-b/picodesk_firmware.uf2
           cmp build-xcp-a/picodesk_firmware.uf2 build-xcp-b/picodesk_firmware.uf2
+      - name: Build with the NFR-3 probe (O-2 bring-up option)
+        # Compile gate only — the probe's behaviour is covered by the native
+        # crit_probe test; this keeps the option from rotting unnoticed.
+        run: |
+          cmake -S target -B build-probe -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICODESK_NFR3_PROBE=ON
+          ninja -C build-probe
       - name: Upload UF2
         uses: actions/upload-artifact@v4
         with:

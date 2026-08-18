@@ -55,6 +55,12 @@ option(PICODESK_SIM "Build for Renode simulation (no USB/TinyUSB)" OFF)
 # XCPlite path; emulation cannot substitute for it.
 option(PICODESK_XCPLITE "Use vendored Vector XCPlite instead of the interim XCP core" OFF)
 
+# NFR-3 bring-up probe: times the seqlock writer's IRQ-disabled window and
+# reports the worst hold as crit_max in the telemetry line. OFF by default
+# because it adds two timer reads inside the window it measures — see the
+# probe notes in rte/rte_port.h and docs/HARDWARE_CAMPAIGN.md.
+option(PICODESK_NFR3_PROBE "Instrument critical-section hold time (NFR-3 bring-up)" OFF)
+
 set(PICODESK_SOURCES
     src/main.c
     src/freertos_hooks.c
@@ -117,6 +123,10 @@ if(PICODESK_SIM)
     target_compile_definitions(picodesk_firmware PRIVATE PICODESK_SIM=1)
 else()
     target_link_libraries(picodesk_firmware tinyusb_device tinyusb_board)
+endif()
+
+if(PICODESK_NFR3_PROBE)
+    target_compile_definitions(picodesk_firmware PRIVATE PICODESK_NFR3_PROBE=1)
 endif()
 
 # ---- Generated firmware (Phase 5, milestone M1) -----------------------------

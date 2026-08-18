@@ -246,6 +246,10 @@ requirements:
     evidence:
       - {kind: robot, id: "sim/picodesk.robot::Boot And 1kHz Fast Dispatch",
          note: "functional 1 kHz dispatch with zero overruns; virtual time only"}
+      - {kind: pytest, id: "tests/test_hil_analyze.py::test_injected_jitter_is_recovered"}
+      - {kind: pytest, id: "tests/test_hil_analyze.py::test_verdict_fails_when_the_budget_is_exceeded"}
+      - {kind: pytest, id: "tests/test_hil_analyze.py::test_too_few_samples_is_inconclusive_not_a_pass"}
+      - {kind: file, path: "docs/HARDWARE_CAMPAIGN.md"}
       - {kind: hardware, note: "logic-analyzer campaign, 1e6 cycles, under full XCP DAQ load"}
 
   NFR-2:
@@ -261,4 +265,7 @@ requirements:
     evidence:
       - {kind: file, path: "target/rte/rte_seqlock.c",
          note: "writers mask local IRQs only; the fast path never takes the kernel lock"}
+      - {kind: native, id: "crit_probe"}
+      - {kind: pytest, id: "tests/test_hil_analyze.py::test_long_hold_fails_nfr3"}
+      - {kind: file, path: "docs/HARDWARE_CAMPAIGN.md"}
       - {kind: hardware, note: "hold-time probe campaign on both cores"}

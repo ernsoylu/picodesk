@@ -36,4 +36,13 @@ void rte_seqlock_write(rte_seqlock_t *lock, void *dst, const void *src, size_t b
  * a concurrent write — dst is then untouched (last-known-good stale data). */
 bool rte_seqlock_read(rte_seqlock_t *lock, void *dst, const void *src, size_t bytes);
 
+/* NFR-3 probe, active only under -DPICODESK_NFR3_PROBE=1 (see rte_port.h).
+ *
+ * Read these two together. A max of 0 with samples > 0 means the hold time is
+ * below the clock's resolution; samples == 0 means the probe is not in the
+ * path. Without the sample count those two readings are identical. */
+uint32_t rte_crit_max_us(void);
+uint32_t rte_crit_samples(void);
+void rte_crit_probe_reset(void);
+
 #endif /* PICODESK_RTE_SEQLOCK_H */

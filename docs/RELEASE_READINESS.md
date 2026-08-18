@@ -14,9 +14,9 @@ gap requires.
 | Job | Covers |
 |---|---|
 | host / lint | ruff over `host`, `tests`, `tools` |
-| host / pytest + GUI | 91 tests: extraction, gating, MAT-002, routing rules, generator, sizing, A2L/DWARF, GUI view-models and widgets (offscreen Qt) |
+| host / pytest + GUI | 104 tests: extraction, gating, MAT-002, routing rules, generator, sizing, A2L/DWARF, GUI view-models and widgets (offscreen Qt), and the HIL campaign analysis against synthetic captures |
 | host / Windows | the same host suite plus generation and the sizing gate on `windows-latest` (SRS §1.3 platform scope) |
-| native / RTE + XCP | pthread stress on seqlock, DAQ ring, CAL pages; XCP protocol conformance against both slaves — the interim core and vendored XCPlite behind its port |
+| native / RTE + XCP | pthread stress on seqlock, DAQ ring, CAL pages; the NFR-3 probe; XCP protocol conformance against both slaves — the interim core and vendored XCPlite behind its port |
 | sim / Renode | spike firmware, generated firmware, fault-injection drills and the 28-model scale workspace, all on an emulated dual-core RP2040 |
 | firmware / reproducibility | pinned ARM GCC 12.2.rel1, memory-bank audit, bit-identical UF2 across independent build trees |
 
@@ -30,7 +30,10 @@ quietly rot.
 ### Hardware (6)
 
 None of these can be closed in emulation. Renode models function, not time,
-and does not implement the RP2040 USB block.
+and does not implement the RP2040 USB block. The procedure, wiring and
+analysis for each are in [HARDWARE_CAMPAIGN.md](HARDWARE_CAMPAIGN.md); the
+analysis code is already unit-tested against synthetic captures, so the bench
+session is a matter of running it.
 
 | Requirement | Gate | What it needs |
 |---|---|---|
@@ -66,7 +69,7 @@ seed/key security, Apple Silicon.
 
 1. Bring up hardware: flash the spike firmware, run the fault drills
    (including the HardFault injection Renode cannot dispatch), then the
-   watchdog drills.
+   watchdog drills. Follow [HARDWARE_CAMPAIGN.md](HARDWARE_CAMPAIGN.md).
 2. Run the NFR-1 campaign unloaded, then under 50 × 100 Hz DAQ; archive the
    histograms. Run the NFR-3 probe campaign.
 3. Run the 24 h RTE-004 soak and the CAL-001 throughput soak on the XCPlite

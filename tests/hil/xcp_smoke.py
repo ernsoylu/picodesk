@@ -10,6 +10,11 @@ slave with pyxcp over the SxI serial transport (LEN+CTR word headers):
   3. dynamic DAQ: 1 list on event 0, measure sustained frame rate for
      --seconds and report throughput vs. the >=50 signals @ 100 Hz target
 
+Works against both XCP slaves — the interim core and the vendored XCPlite
+build (-DPICODESK_XCPLITE=ON) — because they share the CDC framing and the
+CAL-page semantics. Running it against both is what closes O-4 and decides
+whether XCPlite becomes the default; see docs/HARDWARE_CAMPAIGN.md.
+
 Usage: python tests/hil/xcp_smoke.py --port /dev/ttyACM0 [--seconds 30]
 """
 
@@ -67,7 +72,10 @@ def main() -> int:
             m.setDaqPtr(0, 0, 0)
             for offset in (0, 4, 8, 12):
                 m.writeDaq(0, 4, 0, args.frame_base + offset)
-            m.setDaqListMode(0x00, 0, 0, 1, 0)
+            # DAQ_MODE_TIMESTAMP (bit 4) is mandatory on the XCPlite build,
+            # which rejects a list without it (CRC_CMD_SYNTAX); the interim
+            # core accepts either. Setting it keeps one script for both.
+            m.setDaqListMode(0x10, 0, 0, 1, 0)
             m.startStopDaqList(0x01, 0)
             m.startStopSynch(0x01)
 
