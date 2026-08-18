@@ -80,6 +80,12 @@ total was within tolerance, but splitting runtime overhead 50/50 put the
 the check that exists to catch it. Recalibrated against real linker maps to
 −0.9 % total, ≤ 5 % per bank.
 
+**C-6 · Memory audit was blind to generated firmware** (`tools/check_memmap.py`,
+fixed in `phase8`). It hard-coded the spike firmware's symbol names, so it
+could not see generated firmware at all. That is how C-1 hid. Now
+section-driven: it verifies whatever is *declared* time-critical, and
+ignores functions the linker garbage-collected.
+
 **C-7 · ERT fast-loop model code executed from flash** (BLD-001, fixed
 while closing O-9). The same class as C-1, one level deeper and found the
 same way. The generated adapter reached SRAM via `__not_in_flash_func`, but
@@ -91,12 +97,6 @@ either, so it now **derives** the requirement: an SRAM-resident adapter
 `pd_<Model>_step` implies that model is fast-loop, so the `<Model>_step` it
 calls must be SRAM-resident too — no model list to maintain, nothing to go
 stale.
-
-**C-6 · Memory audit was blind to generated firmware** (`tools/check_memmap.py`,
-fixed in `phase8`). It hard-coded the spike firmware's symbol names, so it
-could not see generated firmware at all. That is how C-1 hid. Now
-section-driven: it verifies whatever is *declared* time-critical, and
-ignores functions the linker garbage-collected.
 
 ## Closed — validation defects (4)
 
@@ -113,6 +113,10 @@ drills that exercised nothing. Replaced with a fetch from unmapped memory,
 which genuinely aborts, plus an honest split: the assert drill covers
 everything downstream of the vector, and dispatch is documented as O-6.
 
+**V-3 · GUI test asserted on the wrong row** — expected a type-mismatch
+rejection on a port that was actually already bound. Masked because
+"already bound" is correctly reported *ahead* of a type mismatch.
+
 **V-4 · Self-exciting stand-ins were flattering every generated-firmware
 test.** The hand-written model stand-ins generated their own motion, so
 "signals are moving" partly measured the stimulus rather than proving the
@@ -122,10 +126,6 @@ zero fixed point and the cross-core assertion failed. The fixture is now a
 closed loop with a setpoint, so a nonzero derate genuinely proves the slow
 model consumed fast-loop output and its result returned through the
 opposite seqlock bus.
-
-**V-3 · GUI test asserted on the wrong row** — expected a type-mismatch
-rejection on a port that was actually already bound. Masked because
-"already bound" is correctly reported *ahead* of a type mismatch.
 
 ## Closed — third-party defects and limitations (5)
 
