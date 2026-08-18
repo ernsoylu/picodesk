@@ -112,7 +112,7 @@ jobs:
 
   # ---- Phases 1-5: whole-firmware system tests on emulated RP2040 ----------
   renode-sim:
-    name: sim / Renode system tests (P1-P6)
+    name: sim / Renode system tests (P1-P8)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
