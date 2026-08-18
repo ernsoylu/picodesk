@@ -25,7 +25,7 @@ jobs:
       - run: ruff check host tests tools
 
   host-tests:
-    name: host / pytest (P0)
+    name: host / pytest + GUI (P0-P7)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,10 +35,23 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
+      - name: Headless Qt dependencies (GUI tests, P7)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq
+             libegl1 libgl1 libxkbcommon0 libdbus-1-3 libfontconfig1
       - run: pip install -e "host[dev]"
-      - run: pytest tests -q
+      # QT_QPA_PLATFORM=offscreen lets the widget tests run without a display.
+      - run: QT_QPA_PLATFORM=offscreen pytest tests -q
       - name: Dependency checker report (informational)
         run: python -m picodesk.buildsys.dependency_checker --json
+      - name: Render GUI screenshots (P7 visual review)
+        run: QT_QPA_PLATFORM=offscreen python tools/gui_screenshot.py build-gui-shots
+      - name: Upload GUI screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gui-screenshots
+          path: build-gui-shots/*.png
+          if-no-files-found: ignore
 
   # ---- Phases 2-3: RTE primitives + XCP protocol core, native tests -------
   native-rte:

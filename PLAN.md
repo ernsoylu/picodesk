@@ -33,7 +33,7 @@ test machines, MATLAB R2023b–R2024b license.
 | P4 MATLAB pipeline | done | CI: 19 fake-engine tests. Local R2025b: real .slx extraction, MAT-002, NFR-2 gate, SIGKILL recovery, ERT codegen | R2023b–R2024b matrix (this box runs R2025b) |
 | P5 RTE generator | done — **M1 met** | CI: 12 generator tests + generated firmware built and run on emulated RP2040 (ASW↔ASW round trip closes) | ERT-emitted step code wired in place of stand-ins; array signals |
 | P6 Build & safety | done | CI: sizing gate + map calibration (BLD-004, ±1%), fault/watchdog drills in Renode (BLD-006/007), A2L DWARF patching (CAL-002), reproducibility with `-g` (BLD-008). Local: NFR-2 = 1.4 s on a 28-model workspace (budget 45 s) | HardFault *exception dispatch* (emulator halts instead of vectoring) — hardware drill |
-| P7 GUI | not started | — | — |
+| P7 GUI | done | CI: 36 GUI tests (view-model rules + headless widget rendering via offscreen Qt), screenshots rendered as artifacts | live MATLAB/CMake wiring behind the page actions; freeze-budget measurement under real load |
 | P8 Validation | not started | — | — |
 
 **Simulation caveat:** Renode validates function, not timing — virtual time is not real time, and

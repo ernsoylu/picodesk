@@ -40,3 +40,4 @@ snapshots/
 # Local tooling
 .codegraph/
 .claude/settings.local.json
+/build-gui-shots/
