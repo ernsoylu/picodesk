@@ -55,7 +55,7 @@ SECTIONS
         __binary_info_header_end = .;
         KEEP (*(.reset))
         *(.init)
-        *(EXCLUDE_FILE(*libgcc.a: *libc.a:*lib_a-mem*.o *libm.a:) .text*)
+        *(EXCLUDE_FILE(*libgcc.a: *libc.a:*lib_a-mem*.o *libm.a: */models/fast/*) .text*)
         *(.fini)
         *crtbegin.o(.ctors)
         *crtbegin?.o(.ctors)
@@ -72,7 +72,7 @@ SECTIONS
     } > FLASH
 
     .rodata : {
-        *(EXCLUDE_FILE(*libgcc.a: *libc.a:*lib_a-mem*.o *libm.a:) .rodata*)
+        *(EXCLUDE_FILE(*libgcc.a: *libc.a:*lib_a-mem*.o *libm.a: */models/fast/*) .rodata*)
         . = ALIGN(4);
         *(SORT_BY_ALIGNMENT(SORT_BY_NAME(.flashdata*)))
         . = ALIGN(4);
@@ -109,6 +109,14 @@ SECTIONS
         *(vtable)
 
         *(.time_critical*)
+
+        /* ERT-generated fast-loop model code and its adapter (BLD-001).
+         * Fast models are written under models/fast/, so their objects are
+         * selectable by path without this script knowing any model name.
+         * They are excluded from the FLASH .text/.rodata sections above —
+         * without that exclusion those wildcards match first and this rule
+         * never sees them. */
+        */models/fast/*(.text* .rodata*)
 
         /* remaining .text and .rodata excluded from FLASH above -> SRAM3 */
         *(.text*)

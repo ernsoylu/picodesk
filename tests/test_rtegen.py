@@ -176,3 +176,36 @@ def test_28_model_synthetic_workspace_generates(hal, tmp_path) -> None:
     c = (tmp_path / "rte_gen.c").read_text()
     for i in range(28):
         assert f"pd_Model{i:02d}_step" in c
+
+
+# --- ERT adapters (O-9) -----------------------------------------------------
+
+def test_ert_adapters_split_by_rate_group(descriptor, tmp_path) -> None:
+    """The fast/slow directory split is load-bearing: the linker script
+    places models/fast/* in SRAM (BLD-001)."""
+    from picodesk.rtegen.generator import generate_ert_adapters
+
+    written = generate_ert_adapters(descriptor, tmp_path)
+    by_name = {p.name: p for p in written}
+    assert by_name["pd_FastCtrl_ert.c"].parent.name == "fast"
+    assert by_name["pd_SlowSense_ert.c"].parent.name == "slow"
+
+
+def test_ert_adapter_is_the_copy_in_boundary(descriptor, tmp_path) -> None:
+    """RTE-001: the adapter copies inputs in, steps, copies outputs out —
+    and touches the ERT globals nowhere else."""
+    from picodesk.rtegen.generator import generate_ert_adapters
+
+    generate_ert_adapters(descriptor, tmp_path, models=["FastCtrl"])
+    text = (tmp_path / "fast" / "pd_FastCtrl_ert.c").read_text()
+
+    assert "FastCtrl_U.adc_u = in->adc_u;" in text
+    assert "FastCtrl_U.derate_in = in->derate_in;" in text
+    assert "FastCtrl_step();" in text
+    assert "out->torque_cmd = FastCtrl_Y.torque_cmd;" in text
+    # Fast-loop adapters must carry the SRAM-resident definition macro.
+    assert "PD_FASTCTRL_STEP" in text
+    # A comment must never contain a C comment terminator: an earlier
+    # version documented the linker glob inline and broke the file.
+    body = text.split("*/", 1)[1]
+    assert "#include" in body, "block comment terminated early"

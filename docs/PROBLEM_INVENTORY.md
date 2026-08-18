@@ -5,7 +5,7 @@ blocks you and, within that, by what it cost or would have cost. Closed
 entries are kept deliberately: several describe traps that will recur, and
 the pattern at the end is the most useful thing in this file.
 
-Counts: **26 total — 12 open, 14 closed.**
+Counts: **28 total — 11 open, 17 closed.**
 
 ---
 
@@ -29,23 +29,22 @@ Everything downstream of the vector — record write, watchdog reboot,
 persistence across reset, boot report — is already proven by the assert
 drill, which shares that entire path.
 
-## Open — known limitations, not blockers (4)
+## Open — known limitations, not blockers (3)
 
 | ID | Problem | Where |
 |---|---|---|
-| O-9 | Generated firmware runs hand-written stand-ins, not ERT-emitted step code | `tests/fixtures/gen_ws/models/`, `tools/make_scale_workspace.py` |
 | O-10 | Array signals (`width > 1`) rejected by design | `host/picodesk/rtegen/routing.py:176` |
 | O-11 | Validated on MATLAB R2025b; SRS pins R2023b–R2024b | `host/picodesk/matlab_bridge/session.py` |
 | O-12 | Interim XCP protocol core marked as Phase 3 debt | `target/xcp/xcp_core.h` |
 
-O-9 and O-10 close together: both land with ERT integration. O-11 is a spec
-decision — widen the matrix after testing a pinned release, or validate on
+O-9 is **closed** — see C-7. O-10 still waits on array-signal support in
+the adapter. O-11 is a spec decision — widen the matrix after testing a pinned release, or validate on
 one. The alignment checker flags the mismatch by design rather than
 silently accepting it.
 
 ---
 
-## Closed — product defects (6)
+## Closed — product defects (7)
 
 Ranked by what shipping them would have cost.
 
@@ -81,13 +80,25 @@ total was within tolerance, but splitting runtime overhead 50/50 put the
 the check that exists to catch it. Recalibrated against real linker maps to
 −0.9 % total, ≤ 5 % per bank.
 
+**C-7 · ERT fast-loop model code executed from flash** (BLD-001, fixed
+while closing O-9). The same class as C-1, one level deeper and found the
+same way. The generated adapter reached SRAM via `__not_in_flash_func`, but
+the ERT code it calls stayed at `0x1000061c` in flash: the linker rule
+placing `models/fast/*` in RAM never matched, because the FLASH `.text`
+wildcard consumes everything first and first match wins. Fixed by excluding
+`*/models/fast/*` from the flash sections. The audit could not see it
+either, so it now **derives** the requirement: an SRAM-resident adapter
+`pd_<Model>_step` implies that model is fast-loop, so the `<Model>_step` it
+calls must be SRAM-resident too — no model list to maintain, nothing to go
+stale.
+
 **C-6 · Memory audit was blind to generated firmware** (`tools/check_memmap.py`,
 fixed in `phase8`). It hard-coded the spike firmware's symbol names, so it
 could not see generated firmware at all. That is how C-1 hid. Now
 section-driven: it verifies whatever is *declared* time-critical, and
 ignores functions the linker garbage-collected.
 
-## Closed — validation defects (3)
+## Closed — validation defects (4)
 
 Green tests that proved nothing. Dangerous in proportion to the confidence
 they carry, and these carried safety confidence.
@@ -101,6 +112,16 @@ the emulator. Both V-1 and V-2 would have produced passing BLD-006/BLD-007
 drills that exercised nothing. Replaced with a fetch from unmapped memory,
 which genuinely aborts, plus an honest split: the assert drill covers
 everything downstream of the vector, and dispatch is documented as O-6.
+
+**V-4 · Self-exciting stand-ins were flattering every generated-firmware
+test.** The hand-written model stand-ins generated their own motion, so
+"signals are moving" partly measured the stimulus rather than proving the
+mesh carried data. Real ERT models are purely reactive: with an
+unstimulated ADC reading zero, the whole chain rested at a legitimate
+zero fixed point and the cross-core assertion failed. The fixture is now a
+closed loop with a setpoint, so a nonzero derate genuinely proves the slow
+model consumed fast-loop output and its result returned through the
+opposite seqlock bus.
 
 **V-3 · GUI test asserted on the wrong row** — expected a type-mismatch
 rejection on a port that was actually already bound. Masked because
@@ -140,7 +161,10 @@ any `identifier=` argument as *named* (cost three separate debugging rounds
 lowercase-`true` coercion; an orphaned test-runner process holding the
 Robot port for 2½ hours while silently queuing every rerun; `matlabengine`
 refusing to install from the root-owned MATLAB tree (used the PyPI package);
-and `logLevel 3` suppressing the very UART output being debugged.
+`logLevel 3` suppressing the very UART output being debugged; and a
+generated C comment that documented the linker glob `*/models/fast/*`
+inline, whose `*/` terminated the comment and turned the rest of the
+sentence into syntax errors.
 
 ---
 
@@ -158,6 +182,11 @@ Three corollaries worth keeping:
    green and meaningless. Before trusting a drill, verify the mechanism
    actually fires.
 3. **Tools that check code must themselves be checked.** C-6 was a blind
-   spot in the auditor, and it concealed C-1. The traceability harness is
-   built on the same principle: it verifies its own evidence, and was
-   validated by deliberately breaking four entries.
+   spot in the auditor, and it concealed C-1; the same blind spot then
+   concealed C-7. Both times the fix was to make the check *derive* its
+   requirement from the artefact rather than from a hard-coded list. The
+   traceability harness is built on the same principle: it verifies its own
+   evidence, and was validated by deliberately breaking four entries.
+4. **Convenient fixtures flatter the system under test.** V-4: stand-ins
+   that move on their own make a data path look alive whether or not it
+   carries anything. Substituting the real thing is what exposed it.

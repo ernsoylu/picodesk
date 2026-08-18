@@ -34,8 +34,14 @@ add_block('simulink/Signal Attributes/Data Type Conversion', ...
     [model '/to_i16_a'], 'OutDataTypeStr', 'int16');
 add_block('simulink/Signal Attributes/Data Type Conversion', ...
     [model '/to_i16_b'], 'OutDataTypeStr', 'int16');
+% A setpoint makes this a closed loop rather than a pure pass-through:
+% without it the model is entirely reactive, and with a zero input (an
+% unstimulated ADC in emulation) the whole chain rests at zero, which
+% proves nothing about the cross-core round trip.
+add_block('simulink/Sources/Constant', [model '/setpoint'], ...
+    'Value', '5000', 'OutDataTypeStr', 'int16');
 add_block('simulink/Math Operations/Sum', [model '/sum'], ...
-    'Inputs', '+-', 'OutDataTypeStr', 'int16', ...
+    'Inputs', '++-', 'OutDataTypeStr', 'int16', ...
     'SaturateOnIntegerOverflow', 'on');
 add_block('simulink/Math Operations/Gain', [model '/gain'], ...
     'Gain', '3', 'OutDataTypeStr', 'int16', ...
@@ -44,8 +50,9 @@ add_block('simulink/Sinks/Out1', [model '/torque_cmd']);
 
 add_line(model, 'adc_u/1', 'to_i16_a/1');
 add_line(model, 'derate_in/1', 'to_i16_b/1');
-add_line(model, 'to_i16_a/1', 'sum/1');
-add_line(model, 'to_i16_b/1', 'sum/2');
+add_line(model, 'setpoint/1', 'sum/1');
+add_line(model, 'to_i16_a/1', 'sum/2');
+add_line(model, 'to_i16_b/1', 'sum/3');
 add_line(model, 'sum/1', 'gain/1');
 add_line(model, 'gain/1', 'torque_cmd/1');
 

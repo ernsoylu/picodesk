@@ -128,6 +128,22 @@ def main(map_path: str) -> int:
           f"{len(time_critical)} time-critical section(s) in SRAM, "
           f"{len(fast_steps)} of them fast-loop model steps (BLD-001)")
 
+    # An SRAM-resident adapter pd_<Model>_step implies <Model> is a fast-loop
+    # model, so the ERT code it calls must be SRAM-resident too. Deriving the
+    # requirement from the adapter needs no model list and cannot go stale.
+    for adapter in fast_steps:
+        model = re.fullmatch(r"pd_(\w+)_step", adapter)
+        if model is None:
+            continue
+        ert_step = f"{model.group(1)}_step"
+        addr = symbol(ert_step)
+        if addr is None or addr == 0:
+            continue  # stand-in implementation: no separate ERT symbol
+        addr &= ~1
+        check(in_range(addr, SRAM3),
+              f"{ert_step} @ {addr:#x} executes from SRAM — the fast-loop "
+              f"adapter {adapter} calls it (BLD-001)")
+
     if failures:
         print(f"\n{len(failures)} memory-policy violation(s)")
         return 1

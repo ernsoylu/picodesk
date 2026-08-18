@@ -95,9 +95,14 @@ endif()
 # implementations (ERT output or stand-ins) live in its models/ subdirectory.
 set(PICODESK_GEN_DIR "" CACHE PATH "Directory with generated RTE sources")
 if(PICODESK_GEN_DIR)
+    # models/fast and models/slow hold ERT output plus its adapter; the
+    # split is load-bearing — the linker script places */fast/* in SRAM
+    # (BLD-001). models/ alone is the stand-in layout.
     file(GLOB PICODESK_GEN_SOURCES
         ${PICODESK_GEN_DIR}/*.c
-        ${PICODESK_GEN_DIR}/models/*.c)
+        ${PICODESK_GEN_DIR}/models/*.c
+        ${PICODESK_GEN_DIR}/models/fast/*.c
+        ${PICODESK_GEN_DIR}/models/slow/*.c)
     add_executable(picodesk_gen_firmware
         src/main_gen.c
         src/freertos_hooks.c
@@ -111,7 +116,11 @@ if(PICODESK_GEN_DIR)
         ${PICODESK_GEN_SOURCES}
     )
     target_include_directories(picodesk_gen_firmware PRIVATE
-        rte config src hal ${PICODESK_GEN_DIR})
+        rte config src hal
+        ${PICODESK_GEN_DIR}
+        ${PICODESK_GEN_DIR}/models/include
+        ${PICODESK_GEN_DIR}/models/fast
+        ${PICODESK_GEN_DIR}/models/slow)
     target_compile_options(picodesk_gen_firmware PRIVATE -Wall -Werror=date-time)
     target_link_libraries(picodesk_gen_firmware
         pico_stdlib

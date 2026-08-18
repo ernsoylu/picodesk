@@ -231,6 +231,42 @@ def generate_rte(descriptor: dict[str, Any], routing: dict[str, Any],
     return written
 
 
+def generate_ert_adapters(descriptor: dict[str, Any], out_dir: Path,
+                          models: list[str] | None = None) -> list[Path]:
+    """Emit one ERT->RTE adapter per model (RTE-001 copy-in/copy-out).
+
+    Fast-loop adapters go to <out>/fast/, slower ones to <out>/slow/: the
+    linker script places */fast/*.obj text and rodata in SRAM, which is what
+    keeps ERT-generated fast-path code off XIP flash (BLD-001).
+    """
+    import jinja2
+
+    env = jinja2.Environment(
+        loader=jinja2.FileSystemLoader(str(_TEMPLATE_DIR)),
+        undefined=jinja2.StrictUndefined,
+        keep_trailing_newline=True, trim_blocks=True, lstrip_blocks=True)
+    template = env.get_template("ert_adapter.c.j2")
+
+    written: list[Path] = []
+    for name in sorted(descriptor["models"]):
+        if models is not None and name not in models:
+            continue
+        model = descriptor["models"][name]
+        fast = model["rate_group"] == "fast_1ms"
+        context = {
+            "name": name,
+            "fast": fast,
+            "inports": model["inports"],
+            "outports": model["outports"],
+        }
+        target = out_dir / ("fast" if fast else "slow")
+        target.mkdir(parents=True, exist_ok=True)
+        path = target / f"pd_{name}_ert.c"
+        path.write_text(template.render(model=context), encoding="utf-8")
+        written.append(path)
+    return written
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
     import json
