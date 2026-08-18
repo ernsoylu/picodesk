@@ -26,3 +26,20 @@ endforeach()
 add_executable(test_xcp_core test_xcp_core.c ${XCP_DIR}/xcp_core.c
                ${RTE_DIR}/rte_calpage.c)
 add_test(NAME xcp_core COMMAND test_xcp_core)
+
+# Vendored Vector XCPlite behind the PicoDesk port (CAL-001). Same master-side
+# sequence as test_xcp_core, run against the real library, so the substitution
+# is proved rather than assumed. The vendored source is third-party and is not
+# held to -Wall -Wextra -Werror; the port sources are.
+set(XCPLITE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../target/xcplite)
+add_executable(test_xcplite test_xcplite.c
+               ${XCPLITE_DIR}/vendor/xcpLite.c
+               ${XCPLITE_DIR}/port/picodesk_platform.c
+               ${XCPLITE_DIR}/port/picodesk_xcp_tl.c
+               ${XCPLITE_DIR}/port/picodesk_xcp_appl.c
+               ${RTE_DIR}/rte_calpage.c)
+target_include_directories(test_xcplite BEFORE PRIVATE
+                           ${XCPLITE_DIR}/port ${XCPLITE_DIR}/vendor)
+set_source_files_properties(${XCPLITE_DIR}/vendor/xcpLite.c PROPERTIES
+                            COMPILE_OPTIONS "-w")
+add_test(NAME xcplite COMMAND test_xcplite)

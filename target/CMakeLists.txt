@@ -46,6 +46,15 @@ add_compile_definitions(PICO_PROGRAM_BUILD_DATE="reproducible")
 # scheduler, fast ISR, seqlocks, CAL pages, banked memory — is identical.
 option(PICODESK_SIM "Build for Renode simulation (no USB/TinyUSB)" OFF)
 
+# CAL-001 names Vector XCPlite as the XCP slave. The tree carries both: the
+# interim core in xcp/ (default, and what the Renode suite exercises today) and
+# the vendored library in xcplite/ behind this option. The two are wire- and
+# behaviour-compatible by construction — same CDC framing, same CAL-page
+# semantics — so the switch is a link-time substitution, not a protocol change.
+# Default stays OFF until the hardware DAQ-throughput soak (O-4) has run on the
+# XCPlite path; emulation cannot substitute for it.
+option(PICODESK_XCPLITE "Use vendored Vector XCPlite instead of the interim XCP core" OFF)
+
 set(PICODESK_SOURCES
     src/main.c
     src/freertos_hooks.c
@@ -58,9 +67,17 @@ set(PICODESK_SOURCES
     rte/rte_daq_ring.c
     rte/rte_calpage.c
     hal/hal_rp2040.c
-    xcp/xcp_core.c
-    xcp/xcp_cdc_task.c
 )
+if(PICODESK_XCPLITE)
+    list(APPEND PICODESK_SOURCES
+        xcplite/vendor/xcpLite.c
+        xcplite/port/picodesk_platform.c
+        xcplite/port/picodesk_xcp_tl.c
+        xcplite/port/picodesk_xcp_appl.c
+        xcplite/port/picodesk_xcp_task.c)
+else()
+    list(APPEND PICODESK_SOURCES xcp/xcp_core.c xcp/xcp_cdc_task.c)
+endif()
 if(NOT PICODESK_SIM)
     list(APPEND PICODESK_SOURCES xcp/usb_descriptors.c)
 endif()
@@ -68,6 +85,18 @@ endif()
 add_executable(picodesk_firmware ${PICODESK_SOURCES})
 
 target_include_directories(picodesk_firmware PRIVATE rte config src hal xcp)
+if(PICODESK_XCPLITE)
+    # port/ before vendor/ so the PicoDesk main.h, platform.h and *_cfg.h are
+    # the ones the vendored sources pick up — that seam is what lets
+    # xcplite/vendor stay byte-identical to upstream (see xcplite/README.md).
+    target_include_directories(picodesk_firmware BEFORE PRIVATE
+        xcplite/port xcplite/vendor)
+    target_compile_definitions(picodesk_firmware PRIVATE PICODESK_XCPLITE=1)
+    # Vendored third-party code is not held to -Wall -Werror; PicoDesk's own
+    # port sources in xcplite/port are (they inherit the target-wide flags).
+    set_source_files_properties(xcplite/vendor/xcpLite.c PROPERTIES
+        COMPILE_OPTIONS "-Wno-all")
+endif()
 
 target_compile_options(picodesk_firmware PRIVATE -Wall -Werror=date-time)
 

@@ -5,13 +5,13 @@ blocks you and, within that, by what it cost or would have cost. Closed
 entries are kept deliberately: several describe traps that will recur, and
 the pattern at the end is the most useful thing in this file.
 
-Counts: **29 total — 9 open, 20 closed.**
+Counts: **30 total — 8 open, 22 closed.**
 
 ---
 
-## Open — blocks tagging v1.0 (8)
+## Open — blocks tagging v1.0 (7)
 
-Seven need a physical RP2040. One needs a decision.
+Six need a physical RP2040. One needs a decision.
 
 | ID | Problem | Requirement | Why it cannot close in CI |
 |---|---|---|---|
@@ -21,7 +21,6 @@ Seven need a physical RP2040. One needs a decision.
 | O-4 | Sustained ≥ 50 signals at 100 Hz over USB CDC | CAL-001 | The RP2040 USB block is unmodeled in Renode |
 | O-5 | MDF4 recording from a live DAQ stream | GUI-012 | Depends on O-4 |
 | O-6 | HardFault **exception dispatch** | BLD-006 | Renode halts the core with "CPU abort" instead of vectoring |
-| O-7 | Vendor Vector XCPlite in place of the interim core | CAL-001 | A real port, not a drop-in — see docs/XCPLITE_FEASIBILITY.md |
 | O-8 | **Qt/PyQt licensing: GPL-3.0 or commercial** | — | Business decision; gates any proprietary distribution |
 
 O-6 is the only true emulator limitation rather than a timing gate.
@@ -33,15 +32,21 @@ drill, which shares that entire path.
 
 | ID | Problem | Where |
 |---|---|---|
-| O-12 | Interim XCP protocol core marked as Phase 3 debt | `target/xcp/xcp_core.h` |
+| O-12 | Two XCP slaves in the tree; the interim core is still the default | `target/xcp/`, `target/xcplite/` |
 
-O-9 and O-10 are **closed** (see C-7 and the array-signal work). **O-11 is
-closed by decision**: R2025b is the release in use, so the SRS was amended
-to pin it (v7.1) rather than validate against a toolchain nobody runs.
+O-12 is what remains of O-7 after the port. Vendored XCPlite is integrated,
+tested and CI-gated behind `-DPICODESK_XCPLITE=ON`; flipping it to the default
+and deleting `target/xcp/` waits on the O-4 throughput soak, because the
+throughput number is the only reason to prefer the library and it is the one
+thing emulation cannot measure.
+
+O-7, O-9 and O-10 are **closed** (see C-8, C-7, and the array-signal work).
+**O-11 is closed by decision**: R2025b is the release in use, so the SRS was
+amended to pin it (v7.1) rather than validate against a toolchain nobody runs.
 
 ---
 
-## Closed — product defects (7)
+## Closed — product defects (8)
 
 Ranked by what shipping them would have cost.
 
@@ -95,6 +100,17 @@ either, so it now **derives** the requirement: an SRAM-resident adapter
 calls must be SRAM-resident too — no model list to maintain, nothing to go
 stale.
 
+**C-8 · CAL-001 named a library the tree did not contain** (fixed while
+closing O-7). The interim protocol core was honest about being interim, but a
+requirement that names Vector XCPlite is not satisfied by something that
+merely speaks the same wire protocol. The library is now vendored unmodified
+at tag V6.4 with a PicoDesk port supplying the transport, platform and
+application layers. The substitution is proved rather than assumed:
+`tests/native/test_xcplite.c` runs the interim core's own master-side sequence
+against the real library through the real CDC framing, and CI boots the
+substituted firmware through the full Renode suite. Cost: +1.6 kB flash,
++4.9 kB RAM.
+
 ## Closed — validation defects (4)
 
 Green tests that proved nothing. Dangerous in proportion to the confidence
@@ -124,7 +140,7 @@ closed loop with a setpoint, so a nonzero derate genuinely proves the slow
 model consumed fast-loop output and its result returned through the
 opposite seqlock bus.
 
-## Closed — third-party defects and limitations (6)
+## Closed — third-party defects and limitations (7)
 
 **T-1 · Renode SIO spinlock slot-0 collision — ACTION OUTSTANDING.** Lock
 ownership is stored as the CPU slot index, so slot 0 is indistinguishable
@@ -151,6 +167,17 @@ the licence inventory; the SRS itself should be amended.
 
 **T-5 · `GenCodeOnly`, not `GenerateCodeOnly`** — the Embedded Coder
 parameter name, verified against the installed release.
+
+**T-7 · XCPlite writes the DAQ timestamp unaligned — HardFault on
+Cortex-M0+.** `xcpLite.c` does `*((uint32_t*)&d0[2]) = clock`, a 32-bit store
+at offset 2 of the buffer the transport layer hands it. ARMv6-M has no
+unaligned access, so this is a fault, not a slow path; it is invisible on every
+architecture upstream tests on. It also cost the only real debugging round of
+the port — the symptom was a segfault in `XcpEvent_` on the *host*, from a
+different cause (32-bit address truncation in the test's DAQ rebase), which
+masked it. Absorbed in the port by returning a buffer congruent to 2 mod 4
+(`TX_STAGING_SKEW`) rather than patching the vendored file, so re-vendoring
+stays a copy. A newer upstream must be re-checked at that offset.
 
 ## Closed — environment friction (6)
 

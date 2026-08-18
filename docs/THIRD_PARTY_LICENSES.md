@@ -13,7 +13,7 @@ the obligation each one places on a distributed build. Compiled from the SRS
 | TinyUSB (via Pico SDK) | bundled with the SDK | MIT | Retain copyright and permission notice. |
 | FreeRTOS-Kernel (SMP port) | V11.1.0 (submodule) | MIT | Retain copyright and permission notice. |
 | ARM GNU Toolchain runtime (libgcc, newlib) | 12.2.rel1 | GPL-3.0 **with GCC Runtime Library Exception** / BSD-style (newlib) | The Runtime Library Exception permits distributing the compiled firmware under any licence, provided the toolchain is used as an unmodified eligible compilation process. |
-| Vector XCPlite | **not yet vendored** | **MIT** (upstream, © 2026 Vector Informatik) | Retain the copyright and permission notice. **Correction:** SRS §8 states Apache-2.0; upstream `vectorgrp/XCPlite` is MIT — the SRS is out of date and should be amended. **Open item:** the tree ships an interim protocol core (`target/xcp/xcp_core.c`, PicoDesk-authored); see docs/XCPLITE_FEASIBILITY.md. |
+| Vector XCPlite | V6.4, vendored unmodified in `target/xcplite/vendor/` (commit in `UPSTREAM_COMMIT`) | **MIT** (© 2026 Vector Informatik) | Retain the copyright and permission notice — `LICENSE` ships alongside the sources. The three vendored files are byte-identical to upstream; everything PicoDesk wrote lives in `target/xcplite/port/`, so there are no modifications to disclose. SRS §8 was amended in v7.1 to MIT (it previously said Apache-2.0). |
 
 ## Host toolchain (not redistributed with the firmware)
 
@@ -41,12 +41,8 @@ the obligation each one places on a distributed build. Compiled from the SRS
 1. **Qt/PyQt licensing** is the decisive question: GPL-3.0 or a commercial
    licence. This is a business decision, not a technical one, and it gates
    any proprietary distribution of the GUI.
-2. **Vendor Vector XCPlite** and retain its MIT `LICENSE` (not Apache-2.0 —
-   see the correction above; SRS §8 needs amending). A `NOTICE` recording
-   PicoDesk's modifications is good practice though MIT does not require it.
-   Feasibility is assessed in docs/XCPLITE_FEASIBILITY.md.
-3. **Bundle licence texts** for the Pico SDK, FreeRTOS, TinyUSB and every
+2. **Bundle licence texts** for the Pico SDK, FreeRTOS, TinyUSB and every
    MIT/BSD host dependency in the release archive.
-4. **State the toolchain provenance** — the GCC Runtime Library Exception
+3. **State the toolchain provenance** — the GCC Runtime Library Exception
    only applies to an unmodified eligible compilation process, which the
    pinned ARM GCC 12.2.rel1 satisfies.

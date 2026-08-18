@@ -101,7 +101,9 @@ picodesk/
 │   ├── src/                 # main.c, HardFault capture
 │   ├── rte/                 # dispatcher, seqlocks, CAL pages, DAQ ring
 │   ├── hal/                 # default HAL (GPIO/ADC/PWM) + hal_manifest.json
-│   ├── xcplite/             # vendored Vector XCPlite + CDC transport shim
+│   ├── xcp/                 # interim protocol core (default until CAL-001 soak)
+│   ├── xcplite/             # vendor/ = unmodified XCPlite V6.4; port/ = CDC transport,
+│   │                        #   platform shim, ApplXcp* bound to the RTE CAL pages
 │   ├── config/              # FreeRTOSConfig.h (SMP)
 │   └── ld/                  # custom bank-separated linker script
 └── tests/                   # host-side pytest suite

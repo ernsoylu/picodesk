@@ -225,9 +225,13 @@ requirements:
     status: hardware
     evidence:
       - {kind: native, id: "xcp_core"}
+      - {kind: native, id: "xcplite"}
       - {kind: file, path: "target/xcp/xcp_cdc_task.c"}
+      - {kind: file, path: "target/xcplite/vendor/xcpLite.c"}
+      - {kind: file, path: "target/xcplite/port/picodesk_xcp_tl.c"}
+      - {kind: file, path: "target/xcplite/port/picodesk_xcp_appl.c"}
+      - {kind: ci, step: "Run system tests against the XCPlite build (CAL-001)"}
       - {kind: hardware, note: "sustained 50 x 100 Hz DAQ over real USB CDC"}
-      - {kind: hardware, note: "Vector XCPlite v5 substitution for the interim protocol core"}
 
   CAL-002:
     statement: DWARF-aware A2L address patching of nested struct members

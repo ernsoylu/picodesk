@@ -100,7 +100,8 @@ jobs:
             --descriptor tests/fixtures/gen_ws/descriptor.json `
             --routing tests/fixtures/gen_ws/routing.json
 
-  # ---- Phases 2-3: RTE primitives + XCP protocol core, native tests -------
+  # ---- Phases 2-3: RTE primitives + XCP protocol cores, native tests -------
+  # Covers both slaves: the interim core and vendored XCPlite behind its port.
   native-rte:
     name: native / RTE + XCP protocol tests (P2-P3)
     runs-on: ubuntu-latest
@@ -160,6 +161,20 @@ jobs:
         run: |
           "${{ runner.temp }}/renode/renode_1.16.1_portable/renode-test" \
             --variable "FIRMWARE:$GITHUB_WORKSPACE/build-sim/picodesk_firmware.elf" \
+            sim/picodesk.robot
+      - name: Build simulation firmware with vendored XCPlite (CAL-001)
+        run: |
+          cmake -S target -B build-sim-xcplite -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DPICODESK_SIM=ON -DPICODESK_XCPLITE=ON
+          ninja -C build-sim-xcplite
+          python3 tools/check_memmap.py build-sim-xcplite/picodesk_firmware.elf.map
+      - name: Run system tests against the XCPlite build (CAL-001)
+        # Same suite, protocol engine substituted. The CAL-page case is the one
+        # that matters: it proves the library did not take the step-boundary
+        # switch away from the RTE (RTE-003).
+        run: |
+          "${{ runner.temp }}/renode/renode_1.16.1_portable/renode-test" \
+            --variable "FIRMWARE:$GITHUB_WORKSPACE/build-sim-xcplite/picodesk_firmware.elf" \
             sim/picodesk.robot
       - name: Generate RTE from the fixture workspace (P5)
         run: |
@@ -273,6 +288,17 @@ jobs:
         run: |
           sha256sum build-a/picodesk_firmware.uf2 build-b/picodesk_firmware.uf2
           cmp build-a/picodesk_firmware.uf2 build-b/picodesk_firmware.uf2
+      - name: Build with vendored XCPlite (CAL-001) + audit + reproducibility
+        # Third-party sources are where a __DATE__ or an absolute path is most
+        # likely to slip in, so the XCPlite variant is held to the same gate.
+        run: |
+          cmake -S target -B build-xcp-a -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICODESK_XCPLITE=ON
+          ninja -C build-xcp-a
+          python3 tools/check_memmap.py build-xcp-a/picodesk_firmware.elf.map
+          cmake -S target -B build-xcp-b -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICODESK_XCPLITE=ON
+          ninja -C build-xcp-b
+          sha256sum build-xcp-a/picodesk_firmware.uf2 build-xcp-b/picodesk_firmware.uf2
+          cmp build-xcp-a/picodesk_firmware.uf2 build-xcp-b/picodesk_firmware.uf2
       - name: Upload UF2
         uses: actions/upload-artifact@v4
         with:

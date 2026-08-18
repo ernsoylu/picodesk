@@ -29,8 +29,8 @@ test machines, MATLAB R2023b–R2024b license.
 | P0 Foundations | done | CI: lint, pytest, double-build UF2 hash match (BLD-008) | — |
 | P1 Real-time spike | done | CI: memory-bank audit (BLD-001/002), Renode boot + 1 kHz dispatch | NFR-1 jitter campaign (logic analyzer) |
 | P2 RTE primitives | done | CI: native pthread stress (seqlock/ring/CAL), Renode primitive health | 24 h on-target soak |
-| P3 XCP on CDC | done | CI: XCP protocol suite (native) | 50 sig × 100 Hz DAQ soak; NFR-1 under load; XCPlite swap (interim slave in tree) |
-| P4 MATLAB pipeline | done | CI: 19 fake-engine tests. Local R2025b: real .slx extraction, MAT-002, NFR-2 gate, SIGKILL recovery, ERT codegen | R2023b–R2024b matrix (this box runs R2025b) |
+| P3 XCP on CDC | done | CI: XCP protocol suite (native) against both slaves; Renode system suite on the XCPlite build | 50 sig × 100 Hz DAQ soak, which is what gates making XCPlite the default |
+| P4 MATLAB pipeline | done | CI: 19 fake-engine tests. Local R2025b: real .slx extraction, MAT-002, NFR-2 gate, SIGKILL recovery, ERT codegen | — (SRS v7.1 pins R2025b, the release in use) |
 | P5 RTE generator | done — **M1 met** | CI: 12 generator tests + generated firmware built and run on emulated RP2040 (ASW↔ASW round trip closes) | — (ERT step code and array signals both landed) |
 | P6 Build & safety | done | CI: sizing gate + map calibration (BLD-004, ±1%), fault/watchdog drills in Renode (BLD-006/007), A2L DWARF patching (CAL-002), reproducibility with `-g` (BLD-008). Local: NFR-2 = 1.4 s on a 28-model workspace (budget 45 s) | HardFault *exception dispatch* (emulator halts instead of vectoring) — hardware drill |
 | P7 GUI | done | CI: 36 GUI tests (view-model rules + headless widget rendering via offscreen Qt), screenshots rendered as artifacts | live MATLAB/CMake wiring behind the page actions; freeze-budget measurement under real load |
@@ -46,7 +46,8 @@ USB is unmodeled. NFR-1/NFR-3 numbers come only from hardware.
 **Goal:** every later phase lands on working rails: pinned toolchain, CI, one reproducible UF2.
 
 - Pin and vendor dependencies: Pico SDK ≥ 1.5.1, FreeRTOS-Kernel ≥ 11.1.0 (SMP) as submodules;
-  Vector XCPlite v5.x vendored into `target/xcplite/` with Apache-2.0 headers retained (SRS §8).
+  Vector XCPlite vendored into `target/xcplite/vendor/` with its MIT `LICENSE` retained
+  (SRS §8; the Apache-2.0 attribution was wrong and was corrected in v7.1).
 - CI: `ruff` + `pytest` for `host/`; firmware build in a container with ARM GCC 12.2.rel1;
   double-build SHA-256 comparison of the UF2 as a reproducibility gate (BLD-008 groundwork —
   the flags already exist in `target/CMakeLists.txt`).
@@ -104,7 +105,7 @@ across a multi-parameter change; NFR-3 audit still passes with primitives in use
 
 **Goal:** calibration/measurement transport proven at load — the real NFR-1 gate. Covers CAL-001.
 
-- TinyUSB CDC-ACM transport shim for XCPlite (`target/xcplite/xcp_cdc_transport.c`), running in
+- TinyUSB CDC-ACM transport shim for XCPlite (`target/xcplite/port/picodesk_xcp_tl.c`), running in
   the Core 1 XCP task at lowest priority (BLD-005 policy).
 - XCPlite wired to Phase 2 primitives: DAQ lists fed from the ring, `SET_CAL_PAGE`/`GET_CAL_PAGE`
   driving the CAL page manager.
@@ -231,7 +232,7 @@ Phase 5; 7d on Phase 6; 7e on Phases 3 + 6.
   watchdog/fault drills repeated on the full build.
 - Cross-platform validation on clean Windows and Linux x64 machines (install → import → build →
   tune); packaging and versioned release artifacts.
-- Docs: user guide, toolchain setup, third-party license inventory (XCPlite Apache-2.0 retention
+- Docs: user guide, toolchain setup, third-party license inventory (XCPlite MIT retention
   verified).
 
 **Exit criteria:** all acceptance tests green on both platforms; NFR-1/2/3 reports archived;
