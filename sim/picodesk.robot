@@ -7,9 +7,7 @@ own telemetry stream:
       r10=<n> r100=<n> daq=<n> daq_depth=<n> daq_drop=<n> cal_sw=<n>
       cal_kp=<n> hwm10=<n> hwm100=<n>
 
-Fields are matched by NAME, not position. Positional groups silently
-mis-assign every later field when one is inserted, and the assertions keep
-passing on the wrong numbers.
+Fields are matched by name; see telemetry.resource for why.
 
 Phase coverage:
   P0/P1  boot, FreeRTOS SMP on both cores, 1 kHz fast dispatch (RTE-002)
@@ -21,10 +19,10 @@ Suite Setup                   Setup
 Suite Teardown                Teardown
 Test Teardown                 Test Teardown
 Resource                      ${RENODEKEYWORDS}
+Resource                      ${CURDIR}${/}telemetry.resource
 
 *** Variables ***
 ${FIRMWARE}                   ${CURDIR}${/}..${/}build-sim${/}picodesk_firmware.elf
-${FIELD_RE}                   (?P<k>\\w+)=(?P<v>-?\\d+)
 
 *** Keywords ***
 Prepare Machine
@@ -35,11 +33,8 @@ Prepare Machine
 Wait For Telemetry
     [Documentation]           Returns the next RTE line as a name -> int dict.
     ${line}=                  Wait For Line On Uart    RTE hb=    timeout=30
-    ${t}=                     Evaluate
-    ...                       {m.group('k'): int(m.group('v')) for m in re.finditer(r"${FIELD_RE}", $line['Line'])}
-    ...                       re
-    Should Be True            'hb' in $t and 'cal_kp' in $t
-    ...                       msg=unparseable telemetry: ${line['Line']}
+    ${t}=                     Parse Telemetry Fields    ${line['Line']}
+    Telemetry Must Contain    ${t}    ${line['Line']}    hb    ovr    slf    cal_kp
     RETURN                    ${t}
 
 *** Test Cases ***

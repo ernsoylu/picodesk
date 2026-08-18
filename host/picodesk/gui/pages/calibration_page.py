@@ -204,6 +204,13 @@ class CalibrationPage(QWidget):
             item.setFont(font)
             self.signal_list.addItem(item)
 
+    def refresh_parameters(self) -> None:
+        """Redraw after the session changed underneath the view — used when
+        the target reports a CAL page switch committed, which is the moment
+        pending edits become live values (RTE-003)."""
+        self._render_parameters()
+        self._update_banner()
+
     def selected_signals(self) -> list[str]:
         return [self.signal_list.item(i).text()
                 for i in range(self.signal_list.count())

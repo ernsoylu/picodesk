@@ -16,6 +16,7 @@ Suite Setup                   Setup
 Suite Teardown                Teardown
 Test Teardown                 Test Teardown
 Resource                      ${RENODEKEYWORDS}
+Resource                      ${CURDIR}${/}telemetry.resource
 
 *** Variables ***
 ${FIRMWARE}                   ${CURDIR}${/}..${/}build-scale${/}picodesk_gen_firmware.elf
@@ -28,9 +29,10 @@ Prepare Machine
 
 Read Telemetry
     ${line}=    Wait For Line On Uart    RTEGEN hb=
-    ${m}=    Evaluate    re.search(r"hb=(\\d+) dhb=(\\d+) exec_max=(\\d+) ovr=(\\d+) slf=(\\d+) slow_10ms=(\\d+) slow_100ms=(\\d+) daq=(\\d+) daq_drain=(\\d+)", $line['Line'])    re
-    Should Not Be Equal       ${m}    ${None}    msg=unparseable: ${line['Line']}
-    RETURN                    ${m}
+    ${t}=                     Parse Telemetry Fields    ${line['Line']}
+    Telemetry Must Contain    ${t}    ${line['Line']}    hb    dhb    ovr    slf
+    ...                       slow_10ms    slow_100ms    daq
+    RETURN                    ${t}
 
 *** Test Cases ***
 Twenty-Eight Model Workspace Dispatches Correctly
@@ -43,15 +45,15 @@ Twenty-Eight Model Workspace Dispatches Correctly
     Prepare Machine
     Wait For Line On Uart     PicoDesk generated RTE boot
     Read Telemetry
-    ${m}=    Read Telemetry
+    ${t}=    Read Telemetry
 
-    ${hb}=      Evaluate      int($m.group(1))
-    ${dhb}=     Evaluate      int($m.group(2))
-    ${ovr}=     Evaluate      int($m.group(4))
-    ${slf}=     Evaluate      int($m.group(5))
-    ${s10}=     Evaluate      int($m.group(6))
-    ${s100}=    Evaluate      int($m.group(7))
-    ${daq}=     Evaluate      int($m.group(8))
+    ${hb}=      Set Variable    ${t}[hb]
+    ${dhb}=     Set Variable    ${t}[dhb]
+    ${ovr}=     Set Variable    ${t}[ovr]
+    ${slf}=     Set Variable    ${t}[slf]
+    ${s10}=     Set Variable    ${t}[slow_10ms]
+    ${s100}=    Set Variable    ${t}[slow_100ms]
+    ${daq}=     Set Variable    ${t}[daq]
 
     Should Be True            900 <= ${dhb} <= 1100
     ...                       msg=fast rate degraded at scale: ${dhb}

@@ -161,6 +161,13 @@ if(PICODESK_GEN_DIR)
         ${PICODESK_GEN_DIR}/models/fast
         ${PICODESK_GEN_DIR}/models/slow)
     target_compile_options(picodesk_gen_firmware PRIVATE -Wall -Werror=date-time)
+    # The generated image is what a user actually ships, so the NFR-3 probe
+    # has to reach it too — not just the spike firmware. Without this the
+    # telemetry line reports crit_max=0 crit_n=0, which by design reads as
+    # "probe not compiled in" rather than as a passing measurement.
+    if(PICODESK_NFR3_PROBE)
+        target_compile_definitions(picodesk_gen_firmware PRIVATE PICODESK_NFR3_PROBE=1)
+    endif()
     target_link_libraries(picodesk_gen_firmware
         pico_stdlib
         pico_multicore

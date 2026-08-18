@@ -315,7 +315,7 @@ static void rte_gen_stats_task(void *arg) {
 {% for group in slow_groups %}
                "{{ group.name }}=%lu "
 {% endfor %}
-               "daq=%lu daq_drain=%lu"
+               "daq=%lu daq_drain=%lu crit_max=%lu crit_n=%lu"
 {% for d in debug_signals %}
                " {{ d.model }}_{{ d.port }}=%ld"
 {% endfor %}
@@ -328,7 +328,13 @@ static void rte_gen_stats_task(void *arg) {
                (unsigned long) g_rte_gen_telemetry.{{ group.name }}_activations,
 {% endfor %}
                (unsigned long) g_rte_gen_telemetry.daq_frames_pushed,
-               (unsigned long) g_rte_gen_telemetry.daq_frames_drained
+               (unsigned long) g_rte_gen_telemetry.daq_frames_drained,
+               /* NFR-3 probe. Zero unless built -DPICODESK_NFR3_PROBE=1; read
+                * crit_max together with crit_n, because max=0 with n=0 means
+                * "not measured" and max=0 with n>0 means "below the 1 us clock
+                * resolution". See target/rte/rte_port.h. */
+               (unsigned long) rte_crit_max_us(),
+               (unsigned long) rte_crit_samples()
 {%- for d in debug_signals %},
                (long) s_store_{{ d.group }}.{{ d.model }}_{{ d.port }}{% if d.width > 1 %}[0]{% endif %}
 {%- endfor %});

@@ -21,6 +21,7 @@ Suite Setup                   Setup
 Suite Teardown                Teardown
 Test Teardown                 Test Teardown
 Resource                      ${RENODEKEYWORDS}
+Resource                      ${CURDIR}${/}telemetry.resource
 
 *** Variables ***
 ${FIRMWARE}                   ${CURDIR}${/}..${/}build-ert${/}picodesk_gen_firmware.elf
@@ -32,8 +33,10 @@ Prepare Machine
     Create Terminal Tester    sysbus.uart0    timeout=60    defaultPauseEmulation=true
 
 Read Telemetry
+    [Documentation]           Returns (line, parsed fields).
     ${line}=    Wait For Line On Uart    RTEGEN hb=
-    RETURN                    ${line['Line']}
+    ${t}=                     Parse Telemetry Fields    ${line['Line']}
+    RETURN                    ${t}
 
 *** Test Cases ***
 ERT Generated Models Run In The RTE
@@ -45,20 +48,14 @@ ERT Generated Models Run In The RTE
     Prepare Machine
     Wait For Line On Uart     PicoDesk generated RTE boot
     Read Telemetry
-    ${line}=    Read Telemetry
-    ${m}=    Evaluate    re.search(r"hb=(\\d+) dhb=(\\d+) exec_max=(\\d+) ovr=(\\d+) slf=(\\d+) slow_100ms=(\\d+) daq=(\\d+)", $line)    re
-    Should Not Be Equal       ${m}    ${None}    msg=unparseable: ${line}
-
-    ${dhb}=    Evaluate       int($m.group(2))
-    ${ovr}=    Evaluate       int($m.group(4))
-    ${slf}=    Evaluate       int($m.group(5))
-    ${s100}=   Evaluate       int($m.group(6))
-    ${daq}=    Evaluate       int($m.group(7))
-    Should Be True            900 <= ${dhb} <= 1100    msg=fast rate off: ${dhb}
-    Should Be Equal As Integers    ${ovr}    0    msg=overruns with ERT code
-    Should Be Equal As Integers    ${slf}    0    msg=seqlock stale fallbacks
-    Should Be True            ${s100} > 0    msg=100 ms group not firing
-    Should Be True            ${daq} > 0     msg=DAQ ring not streaming
+    ${t}=    Read Telemetry
+    Telemetry Must Contain    ${t}    telemetry line    hb    dhb    ovr    slf
+    ...                       slow_100ms    daq
+    Should Be True            900 <= ${t}[dhb] <= 1100    msg=fast rate off: ${t}[dhb]
+    Should Be Equal As Integers    ${t}[ovr]    0    msg=overruns with ERT code
+    Should Be Equal As Integers    ${t}[slf]    0    msg=seqlock stale fallbacks
+    Should Be True            ${t}[slow_100ms] > 0    msg=100 ms group not firing
+    Should Be True            ${t}[daq] > 0     msg=DAQ ring not streaming
 
 ERT Cross-Core Loop Closes Through Both Seqlock Buses
     [Documentation]           ThermalModel derates FastCtrl's torque, and
@@ -71,12 +68,10 @@ ERT Cross-Core Loop Closes Through Both Seqlock Buses
     Wait For Line On Uart     PicoDesk generated RTE boot
     Read Telemetry
     Read Telemetry
-    ${line}=    Read Telemetry
-    ${torque}=    Evaluate
-    ...    int(re.search(r"FastCtrl_torque_cmd=(-?\\d+)", $line).group(1))    re
-    ${derate}=    Evaluate
-    ...    int(re.search(r"ThermalModel_derate_pct=(-?\\d+)", $line).group(1))    re
-    Should Not Be Equal As Integers    ${torque}    0
+    ${t}=    Read Telemetry
+    Telemetry Must Contain    ${t}    telemetry line
+    ...                       FastCtrl_torque_cmd    ThermalModel_derate_pct
+    Should Not Be Equal As Integers    ${t}[FastCtrl_torque_cmd]    0
     ...                       msg=ERT fast model produced no output
-    Should Be True            ${derate} > 0
+    Should Be True            ${t}[ThermalModel_derate_pct] > 0
     ...                       msg=cross-core round trip through ERT code broken

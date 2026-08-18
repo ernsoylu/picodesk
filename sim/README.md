@@ -30,6 +30,19 @@ the firmware's own telemetry stream.
   models real try-claim semantics. Loaded via
   `initialize_peripherals_patched.resc`; drop both when fixed upstream.
 
+## Telemetry parsing
+
+Every suite reads the firmware's one-line-per-second telemetry stream through
+`telemetry.resource`, which parses fields by NAME into a dict.
+
+This matters more than it looks. The generated firmware's line is not fixed in
+shape — its fields depend on how many rate groups and debug signals the
+workspace has — and the suites originally indexed regex groups positionally.
+Inserting one field shifted every later index by one, so the assertions kept
+passing while each checked a different number than it named. Nothing failed and
+nothing warned. Name-based lookup also makes a suite tolerant of firmware built
+before or after a field was added.
+
 ## What the suite verifies (`picodesk.robot`)
 
 `picodesk.robot` — the hand-written spike firmware:

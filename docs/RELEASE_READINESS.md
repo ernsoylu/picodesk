@@ -17,7 +17,7 @@ gap requires.
 | Job | Covers |
 |---|---|
 | host / lint | ruff over `host`, `tests`, `tools` |
-| host / pytest + GUI | 104 tests: extraction, gating, MAT-002, routing rules, generator, sizing, A2L/DWARF, GUI view-models and widgets (offscreen Qt), and the HIL campaign analysis against synthetic captures |
+| host / pytest + GUI | 141 tests: extraction, gating, MAT-002, routing rules, generator, sizing, A2L/DWARF, GUI view-models and widgets (offscreen Qt), the HIL campaign analysis against synthetic captures, and the Live Tuning panel driven end to end against an in-process XCP slave |
 | host / Windows | the same host suite plus generation and the sizing gate on `windows-latest` (SRS §1.3 platform scope) |
 | native / RTE + XCP | pthread stress on seqlock, DAQ ring, CAL pages; the NFR-3 probe; XCP protocol conformance against both slaves — the interim core and vendored XCPlite behind its port |
 | sim / Renode | spike firmware, generated firmware, fault-injection drills and the 28-model scale workspace, all on an emulated dual-core RP2040 |
@@ -44,7 +44,7 @@ session is a matter of running it.
 | NFR-3 | no critical section over 15 µs on either core | hold-time probe campaign |
 | RTE-004 | 24 h two-core soak, torn-read detector | Pico, long run |
 | CAL-001 | sustained ≥ 50 signals at 100 Hz over real USB CDC, on the XCPlite build | Pico + `tests/hil/xcp_smoke.py` against `-DPICODESK_XCPLITE=ON` |
-| GUI-012 | MDF4 recording from a live DAQ stream | Pico + asammdf round trip |
+| GUI-012 | the pyxcp-over-CDC leg, and an MDF4 recording of a live DAQ stream | Pico + `tests/hil/xcp_smoke.py`. Everything above that leg — calibration transactions, DAQ unpacking, MDF4 writing, the panel wiring — is verified host-side. |
 | BLD-006 | HardFault **exception dispatch** | Pico; Renode halts the core with "CPU abort" instead of vectoring. Everything downstream (record write, watchdog reboot, persistence across reset, boot report) is already proven by the assert drill, which shares that path. |
 
 ### Licensing — decided, not open
@@ -56,6 +56,10 @@ because it is not distribution — and the firmware image links no Qt, so the
 `.uf2` is unaffected. See [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
 
 ### Substitutions still owed
+
+- **Nothing on the host side.** The Live Tuning panel's backends were stubs
+  until now; they are implemented and covered (see C-9 in
+  [PROBLEM_INVENTORY.md](PROBLEM_INVENTORY.md)).
 
 - **Vector XCPlite** is vendored, ported and CI-gated behind
   `-DPICODESK_XCPLITE=ON`; what remains is flipping it to the default and

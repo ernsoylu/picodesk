@@ -101,9 +101,24 @@ requirements:
     evidence:
       - {kind: pytest, id: "tests/test_gui_widgets.py::test_calibration_banner_tracks_pending_edits"}
       - {kind: pytest, id: "tests/test_gui_widgets.py::test_telemetry_tiles_colour_by_health"}
+      # The panel end to end against an in-process slave with the target's real
+      # CAL-page semantics: connect, edit, transactional switch, DAQ, MDF4.
+      - {kind: pytest, id: "tests/test_gui_live_tuning.py::test_connect_populates_the_panel"}
+      - {kind: pytest, id: "tests/test_gui_live_tuning.py::test_edit_then_switch_goes_live_only_after_the_target_commits"}
+      - {kind: pytest, id: "tests/test_gui_live_tuning.py::test_record_writes_an_mdf4_from_the_daq_stream"}
+      # MDF4 files are written and read back with asammdf, so the format claim
+      # is checked rather than asserted.
+      - {kind: pytest, id: "tests/test_mdf4_logger.py::test_round_trip_preserves_signals_and_timebase"}
+      - {kind: pytest, id: "tests/test_mdf4_logger.py::test_cap_truncates_and_says_so"}
+      - {kind: pytest, id: "tests/test_xcp_master.py::test_multi_parameter_edit_lands_atomically"}
+      - {kind: pytest, id: "tests/test_xcp_master.py::test_daq_frames_unpack_in_signal_order"}
+      - {kind: file, path: "host/picodesk/xcp/master.py"}
+      - {kind: file, path: "host/picodesk/xcp/mdf4_logger.py"}
       - {kind: file, path: "tests/hil/xcp_smoke.py",
          note: "pyxcp round trip needs a board on USB"}
-      - {kind: hardware, note: "MDF4 recording from a live DAQ stream"}
+      # Only the serial leg is left: PyxcpBackend is deliberately thin and is
+      # the one part a board must exercise.
+      - {kind: hardware, note: "pyxcp-over-CDC leg against real hardware, and an MDF4 recording of a live DAQ stream"}
 
   MAT-001:
     statement: batch .slx extraction to a monolithic JSON descriptor

@@ -78,10 +78,17 @@ cmake --build build-probe
 
 The telemetry line then carries `crit_max=<us> crit_n=<samples>`. Read both:
 `crit_max=0` with `crit_n` climbing means every seqlock write finished inside
-one 1 µs tick, which is the expected healthy result. `crit_n=0` means the probe
-is not in the path — treat that as a broken build, not a good result. The probe
-only sees the sections PicoDesk owns; FreeRTOS SMP and SDK sections are out of
-its reach, which is why the second measurement exists.
+one 1 µs tick. `crit_n=0` means the probe is not in the path — treat that as a
+broken build, not a good result. The probe only sees the sections PicoDesk
+owns; FreeRTOS SMP and SDK sections are out of its reach, which is why the
+second measurement exists.
+
+Build the *generated* firmware, not just the spike, if that is what you are
+shipping: `-DPICODESK_GEN_DIR=<gen> -DPICODESK_NFR3_PROBE=ON`. Under emulation
+the 28-model generated RTE reports numbers the two-model spike does not — a
+`crit_max` of 6 µs against the 15 µs budget was observed in Renode, which is
+headroom but not a lot of it. Real numbers come from the probe campaign below;
+this one is the continuous signal.
 
 **Scoped, precise — the verification.** Instrument the specific section under
 suspicion with a GPIO toggle, capture it, and:

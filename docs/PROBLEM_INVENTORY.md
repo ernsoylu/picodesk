@@ -5,7 +5,7 @@ blocks you and, within that, by what it cost or would have cost. Closed
 entries are kept deliberately: several describe traps that will recur, and
 the pattern at the end is the most useful thing in this file.
 
-Counts: **31 total — 7 open, 24 closed.**
+Counts: **34 total — 7 open, 27 closed.**
 
 ---
 
@@ -58,7 +58,7 @@ Two more are **closed by decision** rather than by work:
 
 ---
 
-## Closed — product defects (8)
+## Closed — product defects (9)
 
 Ranked by what shipping them would have cost.
 
@@ -112,6 +112,18 @@ either, so it now **derives** the requirement: an SRAM-resident adapter
 calls must be SRAM-resident too — no model list to maintain, nothing to go
 stale.
 
+**C-9 · The Live Tuning panel was a shell over two stubs** (GUI-012, fixed
+after the XCPlite port). `XcpMaster` and `Mdf4Logger` were sixteen and
+thirteen lines of `raise NotImplementedError`, and the calibration page was
+instantiated into the stack and then never referenced again — its
+`connectRequested` and `recordToggled` signals were connected to nothing. So
+Connect and Record MDF4 did nothing at all, in a build where every other page
+was wired to its real backend. Found by grepping for stubs while surveying
+what could be done without hardware, not by any test: the widget tests cover
+rendering, and rendering was fine. Now implemented, with the wire operations
+behind a narrow `XcpBackend` seam so the whole chain is driven in-process
+against a slave that implements the target's real CAL-page semantics.
+
 **C-8 · CAL-001 named a library the tree did not contain** (fixed while
 closing O-7). The interim protocol core was honest about being interim, but a
 requirement that names Vector XCPlite is not satisfied by something that
@@ -123,7 +135,7 @@ against the real library through the real CDC framing, and CI boots the
 substituted firmware through the full Renode suite. Cost: +1.6 kB flash,
 +4.9 kB RAM.
 
-## Closed — validation defects (5)
+## Closed — validation defects (7)
 
 Green tests that proved nothing. Dangerous in proportion to the confidence
 they carry, and these carried safety confidence.
@@ -137,6 +149,25 @@ the emulator. Both V-1 and V-2 would have produced passing BLD-006/BLD-007
 drills that exercised nothing. Replaced with a fetch from unmapped memory,
 which genuinely aborts, plus an honest split: the assert drill covers
 everything downstream of the vector, and dispatch is documented as O-6.
+
+**V-7 · Four Renode suites parsed telemetry by position.** Every generated-
+firmware suite indexed regex groups 1..9, and the generated telemetry line is
+not even fixed in shape — its fields depend on how many rate groups and debug
+signals the workspace has. Inserting a field shifts every later index by one:
+the suite keeps passing, but each assertion is now checking a different number
+than it names. Found while appending `crit_max` to the telemetry line, which
+would have done exactly that. All four now match by name through one shared
+keyword (`sim/telemetry.resource`), which also makes them tolerant of a
+firmware built before or after a field was added.
+
+**V-6 · GUI-012's hardware gate was concealing an unbuilt feature.** The
+traceability matrix carried the requirement on two widget-rendering tests, a
+pointer at the HIL script, and a hardware note for "MDF4 recording from a live
+DAQ stream". Every artefact existed, so the self-verifying matrix was happy —
+but nothing cited covered pyxcp parameter adjustment or MDF4 writing, and the
+code that would have was C-9's stub. A `status: hardware` gate is a claim that
+the work is done and only the measurement is missing; it is worth checking
+that is true before writing one.
 
 **V-3 · GUI test asserted on the wrong row** — expected a type-mismatch
 rejection on a port that was actually already bound. Masked because
@@ -224,7 +255,7 @@ sentence into syntax errors.
 something** — pthread stress, emulated hardware, a 28-model workspace, or
 looking at a rendered screenshot. None were found by reading code.
 
-Four corollaries worth keeping:
+Five corollaries worth keeping:
 
 1. **Scale surfaces what fixtures hide.** C-1 was invisible in the
    two-model fixture and obvious at 28 models.
@@ -233,12 +264,16 @@ Four corollaries worth keeping:
    actually fires. V-5 adds the sharper form: a *measurement* whose healthy
    reading is zero must also report whether it ran, or "fine" and "not
    wired up" are the same number on the screen.
-3. **Tools that check code must themselves be checked.** C-6 was a blind
+3. **A hardware gate is not a parking space.** V-6: "needs a board" reads
+   as *built, pending measurement*. Used on something unbuilt it hides the gap
+   behind a legitimate-looking blocker, and the self-verifying matrix cannot
+   catch it, because every artefact cited really does exist.
+4. **Tools that check code must themselves be checked.** C-6 was a blind
    spot in the auditor, and it concealed C-1; the same blind spot then
    concealed C-7. Both times the fix was to make the check *derive* its
    requirement from the artefact rather than from a hard-coded list. The
    traceability harness is built on the same principle: it verifies its own
    evidence, and was validated by deliberately breaking four entries.
-4. **Convenient fixtures flatter the system under test.** V-4: stand-ins
+5. **Convenient fixtures flatter the system under test.** V-4: stand-ins
    that move on their own make a data path look alive whether or not it
    carries anything. Substituting the real thing is what exposed it.

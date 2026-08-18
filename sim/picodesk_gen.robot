@@ -12,13 +12,10 @@ Suite Setup                   Setup
 Suite Teardown                Teardown
 Test Teardown                 Test Teardown
 Resource                      ${RENODEKEYWORDS}
+Resource                      ${CURDIR}${/}telemetry.resource
 
 *** Variables ***
 ${FIRMWARE}                   ${CURDIR}${/}..${/}build-gen${/}picodesk_gen_firmware.elf
-${GEN_RE}                     SEPARATOR=
-...                           RTEGEN hb=(\\d+) dhb=(\\d+) exec_max=(\\d+) ovr=(\\d+)${SPACE}
-...                           slf=(\\d+) slow_100ms=(\\d+) daq=(\\d+) daq_drain=(\\d+)${SPACE}
-...                           FastCtrl_torque_cmd=(-?\\d+) SlowSense_derate_pct=(-?\\d+)
 
 *** Keywords ***
 Prepare Machine
@@ -28,9 +25,11 @@ Prepare Machine
 
 Wait For Gen Telemetry
     ${line}=                  Wait For Line On Uart    RTEGEN hb=    timeout=30
-    ${m}=                     Evaluate    re.search(r"${GEN_RE}", $line['Line'])    re
-    Should Not Be Equal       ${m}    ${None}    msg=unparseable: ${line['Line']}
-    RETURN                    ${m}
+    ${t}=                     Parse Telemetry Fields    ${line['Line']}
+    Telemetry Must Contain    ${t}    ${line['Line']}    hb    ovr    slf
+    ...                       slow_100ms    daq    FastCtrl_torque_cmd
+    ...                       SlowSense_derate_pct
+    RETURN                    ${t}
 
 *** Test Cases ***
 Generated RTE Runs The Full Mesh
@@ -43,18 +42,12 @@ Generated RTE Runs The Full Mesh
     Prepare Machine
     Wait For Gen Telemetry
     Wait For Gen Telemetry
-    ${m}=    Wait For Gen Telemetry
-    ${dhb}=      Evaluate     int($m.group(2))
-    ${ovr}=      Evaluate     int($m.group(4))
-    ${slf}=      Evaluate     int($m.group(5))
-    ${s100}=     Evaluate     int($m.group(6))
-    ${daq}=      Evaluate     int($m.group(7))
-    ${torque}=   Evaluate     int($m.group(9))
-    ${derate}=   Evaluate     int($m.group(10))
-    Should Be True            900 <= ${dhb} <= 1100    msg=fast rate off: ${dhb}
-    Should Be Equal As Integers    ${ovr}    0    msg=overruns
-    Should Be Equal As Integers    ${slf}    0    msg=seqlock faults
-    Should Be True            ${s100} > 0    msg=slow_100ms group not firing
-    Should Be True            ${daq} > 0    msg=DAQ not streaming
-    Should Be True            ${torque} != 0    msg=fast model output dead
-    Should Be True            ${derate} > 0    msg=cross-core round trip broken
+    ${t}=    Wait For Gen Telemetry
+    Should Be True            900 <= ${t}[dhb] <= 1100    msg=fast rate off: ${t}[dhb]
+    Should Be Equal As Integers    ${t}[ovr]    0    msg=overruns
+    Should Be Equal As Integers    ${t}[slf]    0    msg=seqlock faults
+    Should Be True            ${t}[slow_100ms] > 0    msg=slow_100ms group not firing
+    Should Be True            ${t}[daq] > 0    msg=DAQ not streaming
+    Should Be True            ${t}[FastCtrl_torque_cmd] != 0    msg=fast model output dead
+    Should Be True            ${t}[SlowSense_derate_pct] > 0
+    ...                       msg=cross-core round trip broken
