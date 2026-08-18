@@ -16,6 +16,8 @@
 {% endif %}
  */
 
+#include <string.h>
+
 #include "pd_{{ model.name }}_io.h"
 #include "{{ model.name }}.h"
 
@@ -26,7 +28,12 @@ void pd_{{ model.name }}_init(void) {
 void PD_{{ model.name | upper }}_STEP(const pd_{{ model.name }}_in_t *in,
                                       pd_{{ model.name }}_out_t *out) {
 {% for p in model.inports %}
+{% if p.width | default(1) > 1 %}
+    memcpy({{ model.name }}_U.{{ p.name }}, in->{{ p.name }},
+           sizeof {{ model.name }}_U.{{ p.name }});
+{% else %}
     {{ model.name }}_U.{{ p.name }} = in->{{ p.name }};
+{% endif %}
 {% endfor %}
 {% if not model.inports %}
     (void) in;
@@ -35,7 +42,12 @@ void PD_{{ model.name | upper }}_STEP(const pd_{{ model.name }}_in_t *in,
     {{ model.name }}_step();
 
 {% for p in model.outports %}
+{% if p.width | default(1) > 1 %}
+    memcpy(out->{{ p.name }}, {{ model.name }}_Y.{{ p.name }},
+           sizeof out->{{ p.name }});
+{% else %}
     out->{{ p.name }} = {{ model.name }}_Y.{{ p.name }};
+{% endif %}
 {% endfor %}
 {% if not model.outports %}
     (void) out;

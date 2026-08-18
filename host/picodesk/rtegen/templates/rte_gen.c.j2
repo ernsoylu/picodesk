@@ -1,3 +1,8 @@
+{% macro cp(dst, src_expr, width) -%}
+{% if width > 1 %}memcpy({{ dst }}, {{ src_expr }}, sizeof {{ dst }});
+{%- else %}{{ dst }} = {{ src_expr }};
+{%- endif %}
+{%- endmacro %}
 {% macro src(source) -%}
 {% if source.kind == "zero" %}0
 {%- elif source.kind == "hal" %}{{ source.func }}({{ source.arg }})
@@ -51,7 +56,7 @@ typedef struct {
 {% set ns = namespace(count=0) %}
 {% for model in group.models %}
 {% for p in model.outports %}
-    {{ p.ctype }} {{ model.name }}_{{ p.name }};
+    {{ p.ctype }} {{ model.name }}_{{ p.name }}{% if p.width > 1 %}[{{ p.width }}]{% endif %};
 {% set ns.count = ns.count + 1 %}
 {% endfor %}
 {% endfor %}
@@ -66,7 +71,7 @@ static rte_gen_store_{{ group.name }}_t s_store_{{ group.name }} {{ "RTE_CORE0_B
 {% for bus in buses %}
 typedef struct {
 {% for f in bus.fields %}
-    {{ f.ctype }} {{ f.field }};
+    {{ f.ctype }} {{ f.field }}{% if f.width > 1 %}[{{ f.width }}]{% endif %};
 {% endfor %}
 {% if bus.pad %}
     uint8_t _pad[{{ bus.pad }}];
@@ -174,12 +179,12 @@ static void __not_in_flash_func(rte_gen_fast_isr)(void) {
         pd_{{ model.name }}_out_t out;
 {% for p in model.inports %}
 {% if p.source.kind != "zero" %}
-        in.{{ p.name }} = {{ src(p.source) }};
+        {{ cp("in." ~ p.name, src(p.source), p.width) }}
 {% endif %}
 {% endfor %}
         pd_{{ model.name }}_step(&in, &out);
 {% for p in model.outports %}
-        s_store_fast_1ms.{{ model.name }}_{{ p.name }} = out.{{ p.name }};
+        {{ cp("s_store_fast_1ms." ~ model.name ~ "_" ~ p.name, "out." ~ p.name, p.width) }}
 {% endfor %}
     }
 {% endfor %}
@@ -191,23 +196,24 @@ static void __not_in_flash_func(rte_gen_fast_isr)(void) {
     /* Publish outbound buses (RTE-004). */
 {% for bus in buses if bus.src == "fast_1ms" %}
     {
-        rte_gen_{{ bus.name }}_t tmp = {
+        rte_gen_{{ bus.name }}_t tmp;
 {% for f in bus.fields %}
-            .{{ f.field }} = s_store_fast_1ms.{{ f.model }}_{{ f.port }},
+        {{ cp("tmp." ~ f.field, "s_store_fast_1ms." ~ f.model ~ "_" ~ f.port, f.width) }}
 {% endfor %}
-        };
+{% if bus.pad %}
+        memset(tmp._pad, 0, sizeof tmp._pad);  /* padding is published too */
+{% endif %}
         rte_seqlock_write(&s_sl_{{ bus.name }}, &s_bus_{{ bus.name }}, &tmp, sizeof tmp);
     }
 {% endfor %}
 
     /* Coherent DAQ snapshot (RTE-005). */
     {
-        const rte_gen_daq_frame_t frame = {
-            .tick = g_rte_gen_telemetry.fast_ticks,
+        rte_gen_daq_frame_t frame;
+        frame.tick = g_rte_gen_telemetry.fast_ticks;
 {% for f in daq_fields %}
-            .{{ f.model }}_{{ f.port }} = s_store_fast_1ms.{{ f.model }}_{{ f.port }},
+        {{ cp("frame." ~ f.model ~ "_" ~ f.port, "s_store_fast_1ms." ~ f.model ~ "_" ~ f.port, f.width) }}
 {% endfor %}
-        };
         if (rte_daq_ring_push(&s_daq, &frame)) {
             g_rte_gen_telemetry.daq_frames_pushed++;
         }
@@ -256,12 +262,12 @@ static void rte_gen_{{ group.name }}_task(void *arg) {
             pd_{{ model.name }}_out_t out;
 {% for p in model.inports %}
 {% if p.source.kind != "zero" %}
-            in.{{ p.name }} = {{ src(p.source) }};
+            {{ cp("in." ~ p.name, src(p.source), p.width) }}
 {% endif %}
 {% endfor %}
             pd_{{ model.name }}_step(&in, &out);
 {% for p in model.outports %}
-            s_store_{{ group.name }}.{{ model.name }}_{{ p.name }} = out.{{ p.name }};
+            {{ cp("s_store_" ~ group.name ~ "." ~ model.name ~ "_" ~ p.name, "out." ~ p.name, p.width) }}
 {% endfor %}
         }
 {% endfor %}
@@ -270,11 +276,13 @@ static void rte_gen_{{ group.name }}_task(void *arg) {
 {% endfor %}
 {% for bus in buses if bus.src == group.name %}
         {
-            rte_gen_{{ bus.name }}_t tmp = {
+            rte_gen_{{ bus.name }}_t tmp;
 {% for f in bus.fields %}
-                .{{ f.field }} = s_store_{{ group.name }}.{{ f.model }}_{{ f.port }},
+            {{ cp("tmp." ~ f.field, "s_store_" ~ group.name ~ "." ~ f.model ~ "_" ~ f.port, f.width) }}
 {% endfor %}
-            };
+{% if bus.pad %}
+            memset(tmp._pad, 0, sizeof tmp._pad);
+{% endif %}
             rte_seqlock_write(&s_sl_{{ bus.name }}, &s_bus_{{ bus.name }}, &tmp, sizeof tmp);
         }
 {% endfor %}
@@ -322,7 +330,7 @@ static void rte_gen_stats_task(void *arg) {
                (unsigned long) g_rte_gen_telemetry.daq_frames_pushed,
                (unsigned long) g_rte_gen_telemetry.daq_frames_drained
 {%- for d in debug_signals %},
-               (long) s_store_{{ d.group }}.{{ d.model }}_{{ d.port }}
+               (long) s_store_{{ d.group }}.{{ d.model }}_{{ d.port }}{% if d.width > 1 %}[0]{% endif %}
 {%- endfor %});
         last_hb = hb;
     }

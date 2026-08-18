@@ -209,3 +209,105 @@ def test_ert_adapter_is_the_copy_in_boundary(descriptor, tmp_path) -> None:
     # version documented the linker glob inline and broke the file.
     body = text.split("*/", 1)[1]
     assert "#include" in body, "block comment terminated early"
+
+
+# --- array signals (O-10) ---------------------------------------------------
+
+@pytest.fixture
+def array_workspace() -> tuple[dict, dict]:
+    """A cross-rate array signal plus a scalar, so both paths are covered."""
+    descriptor = {
+        "schema_version": 1,
+        "models": {
+            "Sensor": {
+                "file": "Sensor.slx", "slx_sha256": "a" * 64,
+                "base_rate_s": 0.001, "rate_group": "fast_1ms",
+                "inports": [],
+                "outports": [
+                    {"name": "chan", "data_type": "int16", "width": 4},
+                    {"name": "status", "data_type": "uint8", "width": 1},
+                ],
+                "internal_types": ["int16"],
+            },
+            "Filter": {
+                "file": "Filter.slx", "slx_sha256": "b" * 64,
+                "base_rate_s": 0.1, "rate_group": "slow_100ms",
+                "inports": [
+                    {"name": "chan_in", "data_type": "int16", "width": 4},
+                    {"name": "status_in", "data_type": "uint8", "width": 1},
+                ],
+                "outports": [],
+                "internal_types": ["int16"],
+            },
+        },
+    }
+    routing = {"schema_version": 1, "connections": [
+        {"producer": "Sensor.chan", "consumer": "Filter.chan_in"},
+        {"producer": "Sensor.status", "consumer": "Filter.status_in"},
+    ]}
+    return descriptor, routing
+
+
+def test_array_signals_route(array_workspace, hal) -> None:
+    descriptor, routing = array_workspace
+    edges = resolve_routing(descriptor, routing, hal)
+    assert len(edges) == 2
+    assert all(e.mechanism == "zoh_seqlock" for e in edges)
+
+
+def test_array_width_mismatch_still_rejected(array_workspace, hal) -> None:
+    """GUI-008 keeps demanding an exact width match."""
+    descriptor, routing = array_workspace
+    descriptor["models"]["Filter"]["inports"][0]["width"] = 8
+    with pytest.raises(RoutingError, match="width 4 != 8"):
+        resolve_routing(descriptor, routing, hal)
+
+
+def test_array_signals_generate_memcpy(array_workspace, hal, tmp_path) -> None:
+    """Arrays cannot be assigned or placed in a designated initializer, so
+    every copy of one must go through memcpy."""
+    descriptor, routing = array_workspace
+    generate_rte(descriptor, routing, hal, tmp_path)
+    c = (tmp_path / "rte_gen.c").read_text()
+
+    # Store, bus field and DAQ frame all carry the dimension.
+    assert "int16_t Sensor_chan[4];" in c
+    assert "memcpy(tmp.Sensor_chan, s_store_fast_1ms.Sensor_chan" in c
+    assert "memcpy(frame.Sensor_chan, s_store_fast_1ms.Sensor_chan" in c
+    # The scalar beside it still uses plain assignment.
+    assert "tmp.Sensor_status = s_store_fast_1ms.Sensor_status;" in c
+    # Consumer copy-in from the seqlock shadow.
+    assert "memcpy(in.chan_in, s_shadow_bus" in c
+
+    h = (tmp_path / "rte_gen.h").read_text()
+    assert "int16_t Sensor_chan[4];" in h
+    io = (tmp_path / "pd_Sensor_io.h").read_text()
+    assert "int16_t chan[4];" in io
+
+
+def test_array_bus_counts_toward_the_seqlock_bound(hal, tmp_path) -> None:
+    """RTE-004: width multiplies the payload, so the bound must see it."""
+    descriptor = {
+        "schema_version": 1,
+        "models": {
+            "Wide": {
+                "file": "Wide.slx", "slx_sha256": "c" * 64,
+                "base_rate_s": 0.001, "rate_group": "fast_1ms",
+                "inports": [],
+                "outports": [{"name": "big", "data_type": "int32",
+                              "width": 32}],  # 128 bytes > 64-byte bound
+                "internal_types": ["int32"],
+            },
+            "Sink": {
+                "file": "Sink.slx", "slx_sha256": "d" * 64,
+                "base_rate_s": 0.1, "rate_group": "slow_100ms",
+                "inports": [{"name": "big_in", "data_type": "int32",
+                             "width": 32}],
+                "outports": [], "internal_types": ["int32"],
+            },
+        },
+    }
+    routing = {"schema_version": 1, "connections": [
+        {"producer": "Wide.big", "consumer": "Sink.big_in"}]}
+    with pytest.raises(RoutingError, match="RTE-004"):
+        generate_rte(descriptor, routing, hal, tmp_path)

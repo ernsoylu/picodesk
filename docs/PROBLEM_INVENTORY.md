@@ -5,7 +5,7 @@ blocks you and, within that, by what it cost or would have cost. Closed
 entries are kept deliberately: several describe traps that will recur, and
 the pattern at the end is the most useful thing in this file.
 
-Counts: **28 total — 11 open, 17 closed.**
+Counts: **29 total — 10 open, 19 closed.**
 
 ---
 
@@ -21,7 +21,7 @@ Seven need a physical RP2040. One needs a decision.
 | O-4 | Sustained ≥ 50 signals at 100 Hz over USB CDC | CAL-001 | The RP2040 USB block is unmodeled in Renode |
 | O-5 | MDF4 recording from a live DAQ stream | GUI-012 | Depends on O-4 |
 | O-6 | HardFault **exception dispatch** | BLD-006 | Renode halts the core with "CPU abort" instead of vectoring |
-| O-7 | Vendor Vector XCPlite v5 in place of the interim core | CAL-001 | Substitution + re-test; also an Apache-2.0 obligation |
+| O-7 | Vendor Vector XCPlite in place of the interim core | CAL-001 | A real port, not a drop-in — see docs/XCPLITE_FEASIBILITY.md |
 | O-8 | **Qt/PyQt licensing: GPL-3.0 or commercial** | — | Business decision; gates any proprietary distribution |
 
 O-6 is the only true emulator limitation rather than a timing gate.
@@ -29,16 +29,15 @@ Everything downstream of the vector — record write, watchdog reboot,
 persistence across reset, boot report — is already proven by the assert
 drill, which shares that entire path.
 
-## Open — known limitations, not blockers (3)
+## Open — known limitations, not blockers (2)
 
 | ID | Problem | Where |
 |---|---|---|
-| O-10 | Array signals (`width > 1`) rejected by design | `host/picodesk/rtegen/routing.py:176` |
 | O-11 | Validated on MATLAB R2025b; SRS pins R2023b–R2024b | `host/picodesk/matlab_bridge/session.py` |
 | O-12 | Interim XCP protocol core marked as Phase 3 debt | `target/xcp/xcp_core.h` |
 
-O-9 is **closed** — see C-7. O-10 still waits on array-signal support in
-the adapter. O-11 is a spec decision — widen the matrix after testing a pinned release, or validate on
+O-9 and O-10 are both **closed** (see C-7 and the array-signal work).
+O-11 is a spec decision — widen the matrix after testing a pinned release, or validate on
 one. The alignment checker flags the mismatch by design rather than
 silently accepting it.
 
@@ -127,7 +126,7 @@ closed loop with a setpoint, so a nonzero derate genuinely proves the slow
 model consumed fast-loop output and its result returned through the
 opposite seqlock bus.
 
-## Closed — third-party defects and limitations (5)
+## Closed — third-party defects and limitations (6)
 
 **T-1 · Renode SIO spinlock slot-0 collision — ACTION OUTSTANDING.** Lock
 ownership is stored as the CPU slot index, so slot 0 is indistinguishable
@@ -148,6 +147,9 @@ Python side.
 **T-4 · MATLAB `onCleanup` destruction order is unspecified** — two locals
 meant `close_system` ran on a still-compiled model. Replaced with a single
 term-then-close cleanup.
+
+**T-6 · SRS §8 states XCPlite is Apache-2.0; upstream is MIT.** Corrected in
+the licence inventory; the SRS itself should be amended.
 
 **T-5 · `GenCodeOnly`, not `GenerateCodeOnly`** — the Embedded Coder
 parameter name, verified against the installed release.

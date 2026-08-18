@@ -36,7 +36,7 @@ extern rte_gen_telemetry_t g_rte_gen_telemetry;
 typedef struct {
     uint32_t tick;
 {% for f in daq_fields %}
-    {{ f.ctype }} {{ f.model }}_{{ f.port }};
+    {{ f.ctype }} {{ f.model }}_{{ f.port }}{% if f.width > 1 %}[{{ f.width }}]{% endif %};
 {% endfor %}
 } rte_gen_daq_frame_t;
 

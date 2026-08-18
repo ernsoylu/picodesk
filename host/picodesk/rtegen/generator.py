@@ -71,7 +71,8 @@ def _padded_fields(fields: list[dict[str, Any]]) -> tuple[list[dict], int]:
     size = 0
     for f in ordered:
         fsize = C_TYPES[f["data_type"]][1]
-        size = (size + fsize - 1) // fsize * fsize + fsize  # natural alignment
+        count = int(f.get("width", 1))
+        size = (size + fsize - 1) // fsize * fsize + fsize * count
     pad = (-size) % 4
     return ordered, pad
 
@@ -137,6 +138,7 @@ def build_context(descriptor: dict[str, Any], edges: list[Edge]) -> dict[str, An
                     "model": prod.owner,
                     "port": prod.port,
                     "data_type": prod.data_type,
+                    "width": prod.width,
                     "ctype": _ctype({"data_type": prod.data_type}),
                 })
             inputs[key] = {"kind": "bus", "bus": bus["name"], "field": field}
@@ -145,7 +147,8 @@ def build_context(descriptor: dict[str, Any], edges: list[Edge]) -> dict[str, An
     for bus_key in sorted(buses):
         bus = buses[bus_key]
         ordered, pad = _padded_fields(bus["fields"])
-        size = sum(C_TYPES[f["data_type"]][1] for f in ordered) + pad
+        size = sum(C_TYPES[f["data_type"]][1] * int(f.get("width", 1))
+                   for f in ordered) + pad
         if size > SEQLOCK_MAX_BYTES:
             raise RoutingError(
                 f"{bus['name']}: {size} bytes of cross-rate signals exceed "
@@ -171,11 +174,13 @@ def build_context(descriptor: dict[str, Any], edges: list[Edge]) -> dict[str, An
             if m["outports"]:
                 debug.append({"group": gname, "model": m["name"],
                               "port": m["outports"][0]["name"],
+                              "width": m["outports"][0].get("width", 1),
                               "ctype": m["outports"][0]["ctype"]})
                 break
 
     daq_fields = [
-        {"model": m["name"], "port": p["name"], "ctype": p["ctype"]}
+        {"model": m["name"], "port": p["name"], "ctype": p["ctype"],
+         "width": p.get("width", 1)}
         for m in groups["fast_1ms"]["models"] for p in m["outports"]
     ]
 

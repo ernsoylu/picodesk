@@ -173,12 +173,8 @@ def resolve_routing(
             )
         writers[cons_ref] = prod_ref
 
-        # v1 limitation: array signals route with ERT integration.
-        if producer.width > 1 or consumer.width > 1:
-            raise RoutingError(
-                f"{prod_ref} -> {cons_ref}: array signal routing (width > 1) "
-                f"is not supported yet — lands with ERT integration")
-
+        # Array signals route like scalars; the generator copies them by
+        # memcpy and GUI-008 below still demands an exact width match.
         # Strict type filter (GUI-008): storage type, width, and scaling
         # must all match exactly.
         mismatches = []
