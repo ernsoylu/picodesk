@@ -8,6 +8,10 @@
 #define PD_{{ model.name | upper }}_IO_H
 
 #include <stdint.h>
+{% if model.fast %}
+
+#include "pico/platform.h"
+{% endif %}
 
 typedef struct {
 {% for p in model.inports %}
@@ -24,6 +28,19 @@ typedef struct {
     uint8_t _unused;
 {% endfor %}
 } pd_{{ model.name }}_out_t;
+
+/* {% if model.fast %}Fast-loop model: the step runs inside the core 0 ISR and
+ * MUST execute from SRAM (BLD-001). Implementations define it as
+ *   void PD_{{ model.name | upper }}_STEP(const ..._in_t *in, ..._out_t *out)
+ * so the section attribute is applied to the definition.
+{% else %}Slow-rate model: the step runs in a core 1 task and may execute
+ * from XIP flash.
+{% endif %} */
+{% if model.fast %}
+#define PD_{{ model.name | upper }}_STEP __not_in_flash_func(pd_{{ model.name }}_step)
+{% else %}
+#define PD_{{ model.name | upper }}_STEP pd_{{ model.name }}_step
+{% endif %}
 
 void pd_{{ model.name }}_init(void);
 void pd_{{ model.name }}_step(const pd_{{ model.name }}_in_t *in,

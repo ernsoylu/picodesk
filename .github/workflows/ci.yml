@@ -43,6 +43,18 @@ jobs:
       - run: QT_QPA_PLATFORM=offscreen pytest tests -q
       - name: Dependency checker report (informational)
         run: python -m picodesk.buildsys.dependency_checker --json
+      - name: Requirement traceability report (P8)
+        run: |
+          pip install pyyaml
+          QT_QPA_PLATFORM=offscreen python tools/traceability.py \
+            --markdown build-traceability.md
+      - name: Upload traceability report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: traceability-report
+          path: build-traceability.md
+          if-no-files-found: ignore
       - name: Render GUI screenshots (P7 visual review)
         run: QT_QPA_PLATFORM=offscreen python tools/gui_screenshot.py build-gui-shots
       - name: Upload GUI screenshots
@@ -52,6 +64,41 @@ jobs:
           name: gui-screenshots
           path: build-gui-shots/*.png
           if-no-files-found: ignore
+
+  # ---- Phase 8: cross-platform validation (SRS 1.3 = Windows/Linux x64) ---
+  host-windows:
+    name: host / Windows (P8)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -e "host[dev]"
+      # Qt needs no extra system packages on the Windows runner; offscreen
+      # keeps the widget tests headless there too.
+      - name: Host + GUI tests on Windows
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: pytest tests -q --ignore=tests/native
+      - name: Dependency checker on Windows (GUI-004 path handling)
+        run: python -m picodesk.buildsys.dependency_checker --json
+      - name: RTE generation on Windows (path separators, line endings)
+        run: |
+          $env:PYTHONPATH="host"
+          python -m picodesk.rtegen.generator `
+            --descriptor tests/fixtures/gen_ws/descriptor.json `
+            --routing tests/fixtures/gen_ws/routing.json `
+            --hal-manifest target/hal/hal_manifest.json `
+            --out build-gen-src
+      - name: Sizing gate on Windows (BLD-004)
+        run: |
+          python tools/sizing_report.py `
+            --descriptor tests/fixtures/gen_ws/descriptor.json `
+            --routing tests/fixtures/gen_ws/routing.json
 
   # ---- Phases 2-3: RTE primitives + XCP protocol core, native tests -------
   native-rte:
@@ -138,6 +185,18 @@ jobs:
           "${{ runner.temp }}/renode/renode_1.16.1_portable/renode-test" \
             --variable "FIRMWARE:$GITHUB_WORKSPACE/build-sim/picodesk_firmware.elf" \
             sim/picodesk_faults.robot
+      - name: Build 28-model scale workspace (P8, SRS 1.1)
+        run: |
+          python tools/make_scale_workspace.py build-scale-ws --models 28
+          cmake -S target -B build-scale -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DPICODESK_SIM=ON -DPICODESK_GEN_DIR="$GITHUB_WORKSPACE/build-scale-ws/gen"
+          ninja -C build-scale picodesk_gen_firmware
+          python3 tools/check_memmap.py build-scale/picodesk_gen_firmware.elf.map
+      - name: Run scale system test (P8)
+        run: |
+          "${{ runner.temp }}/renode/renode_1.16.1_portable/renode-test" \
+            --variable "FIRMWARE:$GITHUB_WORKSPACE/build-scale/picodesk_gen_firmware.elf" \
+            sim/picodesk_scale.robot
       - name: Sizing report gate + map calibration (P6, BLD-004)
         run: |
           pip install pyelftools

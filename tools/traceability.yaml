@@ -1,0 +1,260 @@
+# Requirement -> evidence matrix (SRS v7.0, Phase 8).
+#
+# Each requirement lists the concrete artefacts that verify it. The runner
+# (tools/traceability.py) checks that every named artefact EXISTS — pytest
+# node ids are collected, Robot test names are located in their suites, files
+# are stat'd — so a stale entry fails the report instead of quietly claiming
+# coverage that evaporated.
+#
+# kinds:
+#   pytest   node id, collected from the host suite
+#   robot    "<suite>.robot::<Test Name>" run under Renode
+#   native   ctest test name (portable C, pthread stress)
+#   ci       a named step in .github/workflows/ci.yml
+#   file     an artefact whose existence is the evidence
+#   hardware a gate that CANNOT be closed without a physical Pico
+#
+# `status: hardware` means the requirement is implemented and verified as far
+# as emulation and host testing allow, with the remaining gate on hardware.
+
+requirements:
+
+  GUI-001:
+    statement: hash .slx, force re-export and warn on staleness
+    evidence:
+      - {kind: pytest, id: "tests/test_matlab_bridge.py::test_content_change_forces_reextraction"}
+      - {kind: pytest, id: "tests/test_gui_logic.py::test_model_state_prioritises_mat002_over_staleness"}
+      - {kind: pytest, id: "tests/test_gui_widgets.py::test_models_table_renders_states"}
+
+  GUI-002:
+    statement: persistent matlab.engine session with crash recovery
+    evidence:
+      - {kind: pytest, id: "tests/test_matlab_bridge.py::test_session_recovers_from_one_crash"}
+      - {kind: pytest, id: "tests/test_matlab_bridge.py::test_session_gives_up_after_second_failure"}
+      - {kind: file, path: "tests/matlab_live/test_live_matlab.py",
+         note: "live SIGKILL recovery against a real engine (R2025b), gated by PICODESK_MATLAB_LIVE"}
+
+  GUI-003:
+    statement: versioned workspace schema with safe migration prompt
+    evidence:
+      - {kind: pytest, id: "tests/test_gui_logic.py::test_migration_chains_v1_to_current_and_keeps_backup"}
+      - {kind: pytest, id: "tests/test_gui_logic.py::test_old_schema_refuses_to_load_without_consent"}
+      - {kind: pytest, id: "tests/test_gui_logic.py::test_future_schema_is_refused"}
+
+  GUI-004:
+    statement: startup dependency check disables builds when tools are missing
+    evidence:
+      - {kind: pytest, id: "tests/test_dependency_checker.py::test_builds_allowed_requires_all_required"}
+      - {kind: pytest, id: "tests/test_gui_widgets.py::test_build_blocked_without_toolchain"}
+      - {kind: ci, step: "Dependency checker report (informational)"}
+
+  GUI-005:
+    statement: embedded console, colour-coded, hyperlinked to source
+    evidence:
+      - {kind: pytest, id: "tests/test_buildsys.py::test_diagnostics_are_parsed_for_hyperlinking"}
+      - {kind: pytest, id: "tests/test_gui_logic.py::test_console_counts_and_filters"}
+      - {kind: pytest, id: "tests/test_gui_widgets.py::test_console_widget_renders_and_links"}
+
+  GUI-006:
+    statement: HAL manifest; reject non-ISR-safe HAL on fast-loop models
+    evidence:
+      - {kind: pytest, id: "tests/test_rtegen.py::test_non_isr_safe_hal_rejected_on_fast_model"}
+      - {kind: pytest, id: "tests/test_gui_logic.py::test_non_isr_safe_hal_blocked_on_fast_model"}
+      - {kind: file, path: "target/hal/hal_manifest.json"}
+
+  GUI-007:
+    statement: hierarchical 3-pane routing matrix
+    evidence:
+      - {kind: pytest, id: "tests/test_gui_widgets.py::test_routing_panes_reflect_the_model"}
+      - {kind: file, path: "host/picodesk/gui/pages/routing_page.py"}
+
+  GUI-008:
+    statement: strict type/dimension/scaling filtering of consumer ports
+    evidence:
+      - {kind: pytest, id: "tests/test_gui_logic.py::test_type_filter_blocks_mismatches"}
+      - {kind: pytest, id: "tests/test_gui_logic.py::test_scaling_difference_blocks_binding"}
+      - {kind: pytest, id: "tests/test_gui_widgets.py::test_selecting_producer_disables_incompatible_rows"}
+      - {kind: pytest, id: "tests/test_rtegen.py::test_type_mismatch_rejected"}
+
+  GUI-009:
+    statement: single-writer inports with lock state; cascade delete
+    evidence:
+      - {kind: pytest, id: "tests/test_gui_logic.py::test_bound_inport_is_locked_to_one_writer"}
+      - {kind: pytest, id: "tests/test_gui_logic.py::test_cascade_delete_unlocks_dependents"}
+      - {kind: pytest, id: "tests/test_rtegen.py::test_single_writer_enforced"}
+
+  GUI-010:
+    statement: rate transition indicators on mismatched-rate connections
+    evidence:
+      - {kind: pytest, id: "tests/test_gui_logic.py::test_rate_transition_classification"}
+      - {kind: pytest, id: "tests/test_rtegen.py::test_valid_routing_classifies_edges"}
+
+  GUI-011:
+    statement: auto-resolve wizard with preview and undo
+    evidence:
+      - {kind: pytest, id: "tests/test_gui_logic.py::test_suggestions_are_exact_and_unambiguous"}
+      - {kind: pytest, id: "tests/test_gui_logic.py::test_suggestions_apply_and_undo_atomically"}
+
+  GUI-012:
+    statement: integrated XCP dashboard with live tuning and MDF4 recording
+    status: hardware
+    evidence:
+      - {kind: pytest, id: "tests/test_gui_widgets.py::test_calibration_banner_tracks_pending_edits"}
+      - {kind: pytest, id: "tests/test_gui_widgets.py::test_telemetry_tiles_colour_by_health"}
+      - {kind: file, path: "tests/hil/xcp_smoke.py",
+         note: "pyxcp round trip needs a board on USB"}
+      - {kind: hardware, note: "MDF4 recording from a live DAQ stream"}
+
+  MAT-001:
+    statement: batch .slx extraction to a monolithic JSON descriptor
+    evidence:
+      - {kind: pytest, id: "tests/test_matlab_bridge.py::test_fresh_extraction_builds_valid_descriptor"}
+      - {kind: pytest, id: "tests/test_matlab_bridge.py::test_descriptor_dump_is_deterministic"}
+      - {kind: file, path: "host/picodesk/matlab_bridge/matlab/picodesk_extract.m"}
+
+  MAT-002:
+    statement: float in a fast-loop model is a hard build error
+    evidence:
+      - {kind: pytest, id: "tests/test_matlab_bridge.py::test_float_in_fast_loop_is_hard_error"}
+      - {kind: pytest, id: "tests/test_matlab_bridge.py::test_float_in_slow_loop_is_allowed"}
+      - {kind: pytest, id: "tests/test_gui_widgets.py::test_build_blocked_by_mat002_and_by_sizing"}
+      - {kind: file, path: "tests/matlab_live/test_live_matlab.py",
+         note: "real double-typed fast-loop model rejected by the live engine"}
+
+  MAT-003:
+    statement: A2L segments match the custom linker; per-model symbol prefixes
+    evidence:
+      - {kind: pytest, id: "tests/test_rtegen.py::test_symbol_prefix_collision_detected"}
+      - {kind: pytest, id: "tests/test_a2l.py::test_render_emits_ram_shared_segment"}
+      - {kind: pytest, id: "tests/test_rtegen.py::test_28_model_synthetic_workspace_generates"}
+
+  RTE-001:
+    statement: copy-in to task-private shadow buffers before model_step
+    evidence:
+      - {kind: pytest, id: "tests/test_rtegen.py::test_generation_emits_expected_sources"}
+      - {kind: robot, id: "sim/picodesk_gen.robot::Generated RTE Runs The Full Mesh"}
+
+  RTE-002:
+    statement: core 0 timer ISR for the fast rate; core 1 tasks via notify
+    evidence:
+      - {kind: robot, id: "sim/picodesk.robot::Boot And 1kHz Fast Dispatch"}
+      - {kind: robot, id: "sim/picodesk.robot::Rate Groups And RTE Primitives Healthy"}
+      - {kind: robot, id: "sim/picodesk_gen.robot::Generated RTE Runs The Full Mesh"}
+
+  RTE-003:
+    statement: XCP CAL pages; swap only at the model_step boundary
+    evidence:
+      - {kind: native, id: "calpage"}
+      - {kind: native, id: "xcp_core"}
+      - {kind: robot, id: "sim/picodesk.robot::CAL Page Transactional Switch"}
+      - {kind: pytest, id: "tests/test_gui_logic.py::test_edits_stay_offline_until_the_page_switch"}
+
+  RTE-004:
+    statement: bi-directional bounded seqlocks with stale fallback
+    status: hardware
+    evidence:
+      - {kind: native, id: "seqlock"}
+      - {kind: robot, id: "sim/picodesk.robot::Rate Groups And RTE Primitives Healthy"}
+      - {kind: pytest, id: "tests/test_rtegen.py::test_seqlock_payload_bound_enforced"}
+      - {kind: hardware, note: "24 h two-core soak with a torn-read detector"}
+
+  RTE-005:
+    statement: coherent DAQ frames through an SRAM2 ring drained by core 1
+    evidence:
+      - {kind: native, id: "daq_ring"}
+      - {kind: native, id: "xcp_core"}
+      - {kind: robot, id: "sim/picodesk.robot::Rate Groups And RTE Primitives Healthy"}
+
+  BLD-001:
+    statement: fast path executes from SRAM via __not_in_flash_func
+    evidence:
+      - {kind: ci, step: "Memory bank audit (BLD-001/BLD-002, P1)"}
+      - {kind: file, path: "tools/check_memmap.py"}
+
+  BLD-002:
+    statement: deliberate bank separation via the custom linker script
+    evidence:
+      - {kind: ci, step: "Memory bank audit (BLD-001/BLD-002, P1)"}
+      - {kind: file, path: "target/ld/rp2040_banked.ld"}
+      - {kind: pytest, id: "tests/test_a2l.py::test_resolves_plain_global",
+         note: "DWARF-resolved addresses land in the expected bank"}
+
+  BLD-003:
+    statement: execution health telemetry surfaced to the GUI
+    evidence:
+      - {kind: robot, id: "sim/picodesk.robot::Boot And 1kHz Fast Dispatch"}
+      - {kind: pytest, id: "tests/test_gui_widgets.py::test_telemetry_tiles_colour_by_health"}
+
+  BLD-004:
+    statement: static SRAM/Flash sizing report; halt above the ceilings
+    evidence:
+      - {kind: pytest, id: "tests/test_buildsys.py::test_oversized_workspace_is_halted"}
+      - {kind: pytest, id: "tests/test_buildsys.py::test_estimate_matches_real_linker_map"}
+      - {kind: ci, step: "Sizing report gate + map calibration (P6, BLD-004)"}
+
+  BLD-005:
+    statement: explicit task priorities and stack budgets; HWM telemetered
+    evidence:
+      - {kind: pytest, id: "tests/test_rtegen.py::test_generation_emits_expected_sources"}
+      - {kind: robot, id: "sim/picodesk.robot::Rate Groups And RTE Primitives Healthy"}
+
+  BLD-006:
+    statement: HardFault capture surviving reset, printed on next boot
+    status: hardware
+    evidence:
+      - {kind: robot, id: "sim/picodesk_faults.robot::Assert Failure Survives Reset And Is Reported"}
+      - {kind: robot, id: "sim/picodesk_faults.robot::Fault Record Is Consumed After Reporting"}
+      - {kind: file, path: "target/src/hardfault.c"}
+      - {kind: hardware, note: "HardFault exception DISPATCH: Renode halts the core with CPU abort instead of vectoring"}
+
+  BLD-007:
+    statement: cross-core watchdog verifying core 0 heartbeat advancement
+    evidence:
+      - {kind: robot, id: "sim/picodesk_faults.robot::Wedged Fast Path Trips The Cross-Core Watchdog"}
+      - {kind: robot, id: "sim/picodesk_faults.robot::Stalled Monitor Task Trips The Watchdog"}
+      - {kind: robot, id: "sim/picodesk_faults.robot::Healthy System Keeps Feeding The Watchdog"}
+
+  BLD-008:
+    statement: reproducible builds; identical UF2 hashes
+    evidence:
+      - {kind: ci, step: "Reproducibility gate (BLD-008)"}
+      - {kind: pytest, id: "tests/test_gui_widgets.py::test_reproducibility_chip_states"}
+
+  CAL-001:
+    statement: XCP on CDC; >=50 signals at 100 Hz
+    status: hardware
+    evidence:
+      - {kind: native, id: "xcp_core"}
+      - {kind: file, path: "target/xcp/xcp_cdc_task.c"}
+      - {kind: hardware, note: "sustained 50 x 100 Hz DAQ over real USB CDC"}
+      - {kind: hardware, note: "Vector XCPlite v5 substitution for the interim protocol core"}
+
+  CAL-002:
+    statement: DWARF-aware A2L address patching of nested struct members
+    evidence:
+      - {kind: pytest, id: "tests/test_a2l.py::test_resolves_nested_struct_member"}
+      - {kind: pytest, id: "tests/test_a2l.py::test_patch_rewrites_addresses_and_reports_unresolved"}
+      - {kind: ci, step: "A2L generation + DWARF patching (P6, CAL-002)"}
+
+  NFR-1:
+    statement: fast-loop dispatch jitter <= 50 us at p99.99 under DAQ load
+    status: hardware
+    evidence:
+      - {kind: robot, id: "sim/picodesk.robot::Boot And 1kHz Fast Dispatch",
+         note: "functional 1 kHz dispatch with zero overruns; virtual time only"}
+      - {kind: hardware, note: "logic-analyzer campaign, 1e6 cycles, under full XCP DAQ load"}
+
+  NFR-2:
+    statement: routing-only change completes in <= 45 s
+    evidence:
+      - {kind: pytest, id: "tests/test_matlab_bridge.py::test_rescan_makes_zero_matlab_calls"}
+      - {kind: file, path: "host/picodesk/buildsys/cmake_driver.py",
+         note: "benchmark_routing_change measured 1.4 s on a 28-model workspace"}
+
+  NFR-3:
+    statement: no critical section holds the SMP spinlock over 15 us
+    status: hardware
+    evidence:
+      - {kind: file, path: "target/rte/rte_seqlock.c",
+         note: "writers mask local IRQs only; the fast path never takes the kernel lock"}
+      - {kind: hardware, note: "hold-time probe campaign on both cores"}

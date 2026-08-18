@@ -41,3 +41,5 @@ snapshots/
 .codegraph/
 .claude/settings.local.json
 /build-gui-shots/
+/build-scale*/
+/build-traceability.md

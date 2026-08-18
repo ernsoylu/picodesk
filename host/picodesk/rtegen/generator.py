@@ -87,6 +87,7 @@ def build_context(descriptor: dict[str, Any], edges: list[Edge]) -> dict[str, An
         m = models[name]
         groups[m["rate_group"]]["models"].append({
             "name": name,
+            "fast": m["rate_group"] == "fast_1ms",
             "inports": [
                 {**p, "ctype": _ctype(p)} for p in m["inports"]],
             "outports": [

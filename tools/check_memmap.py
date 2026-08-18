@@ -22,7 +22,12 @@ SRAM2 = (0x21020000, 0x21030000)
 SRAM3 = (0x21030000, 0x21040000)
 FLASH = (0x10000000, 0x10200000)
 
-FAST_PATH_SYMBOLS = ["rte_fast_tick_isr", "spike_fast_step"]
+#: Fast-path entry points. The spike firmware and generated firmware name
+#: theirs differently, so the audit requires at least one ISR to be present
+#: and checks every step function it actually finds — rather than demanding
+#: symbols from a variant that was not built.
+FAST_PATH_ISRS = ["rte_fast_tick_isr", "rte_gen_fast_isr"]
+FAST_PATH_STEP_RE = r"(spike_fast_step|pd_\w+_step)"
 
 failures: list[str] = []
 
@@ -83,16 +88,45 @@ def main(map_path: str) -> int:
             f"{name} [{addr:#x}+{size:#x}] within {bank_name}",
         )
 
-    for sym in FAST_PATH_SYMBOLS:
-        addr = symbol(sym)
-        if addr is None:
-            check(False, f"{sym} present in map")
+    isrs = [(name, symbol(name)) for name in FAST_PATH_ISRS]
+    present_isrs = [(name, addr) for name, addr in isrs if addr is not None]
+    check(bool(present_isrs),
+          f"a fast-path ISR is present ({' or '.join(FAST_PATH_ISRS)})")
+    for name, addr in present_isrs:
+        addr &= ~1  # thumb bit
+        check(in_range(addr, SRAM3) and not in_range(addr, FLASH),
+              f"{name} @ {addr:#x} executes from SRAM, not XIP flash (BLD-001)")
+
+    # Anything declared __not_in_flash_func lands in .time_critical.<sym>;
+    # every such section must resolve into SRAM. Driving the check off the
+    # section (rather than the symbol name) means slow-rate model steps —
+    # which are legitimately allowed to execute from XIP flash — are not
+    # swept up, while every fast-loop step is.
+    # Section names appear twice in a map: once per input object at address
+    # 0x0 (the pre-placement listing) and once at the real VMA. Resolve each
+    # through the symbol table instead of trusting the first match.
+    section_names = sorted(set(re.findall(
+        r"^\s\.time_critical\.([\w.]+)", text, re.MULTILINE)))
+    time_critical: list[tuple[str, int]] = []
+    misplaced: list[tuple[str, int]] = []
+    for name in section_names:
+        addr = symbol(name)
+        # Address 0 means the section only appears in the pre-placement
+        # listing: --gc-sections dropped it because nothing calls it. A
+        # discarded function cannot violate a placement rule.
+        if addr is None or addr == 0:
             continue
         addr &= ~1  # thumb bit
-        check(
-            in_range(addr, SRAM3) and not in_range(addr, FLASH),
-            f"{sym} @ {addr:#x} executes from SRAM, not XIP flash (BLD-001)",
-        )
+        time_critical.append((name, addr))
+        if not in_range(addr, SRAM3):
+            misplaced.append((name, addr))
+    for name, addr in misplaced:
+        check(False, f"{name} @ {addr:#x} is not SRAM-resident (BLD-001)")
+    fast_steps = [name for name, _ in time_critical
+                  if re.fullmatch(FAST_PATH_STEP_RE, name)]
+    check(bool(time_critical) and not misplaced,
+          f"{len(time_critical)} time-critical section(s) in SRAM, "
+          f"{len(fast_steps)} of them fast-loop model steps (BLD-001)")
 
     if failures:
         print(f"\n{len(failures)} memory-policy violation(s)")

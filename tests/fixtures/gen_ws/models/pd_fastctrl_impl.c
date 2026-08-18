@@ -10,7 +10,7 @@ void pd_FastCtrl_init(void) {
     s_phase = 0;
 }
 
-void pd_FastCtrl_step(const pd_FastCtrl_in_t *in, pd_FastCtrl_out_t *out) {
+void PD_FASTCTRL_STEP(const pd_FastCtrl_in_t *in, pd_FastCtrl_out_t *out) {
     s_phase++;
     const int32_t base = ((s_phase >> 8) & 1) ? 9000 : -9000;
     int32_t torque = base + (int32_t) (in->adc_u >> 4)

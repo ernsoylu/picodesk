@@ -34,7 +34,7 @@ test machines, MATLAB R2023b–R2024b license.
 | P5 RTE generator | done — **M1 met** | CI: 12 generator tests + generated firmware built and run on emulated RP2040 (ASW↔ASW round trip closes) | ERT-emitted step code wired in place of stand-ins; array signals |
 | P6 Build & safety | done | CI: sizing gate + map calibration (BLD-004, ±1%), fault/watchdog drills in Renode (BLD-006/007), A2L DWARF patching (CAL-002), reproducibility with `-g` (BLD-008). Local: NFR-2 = 1.4 s on a 28-model workspace (budget 45 s) | HardFault *exception dispatch* (emulator halts instead of vectoring) — hardware drill |
 | P7 GUI | done | CI: 36 GUI tests (view-model rules + headless widget rendering via offscreen Qt), screenshots rendered as artifacts | live MATLAB/CMake wiring behind the page actions; freeze-budget measurement under real load |
-| P8 Validation | not started | — | — |
+| P8 Validation | done — **v1.0 blocked** | CI: traceability report (33/33 requirements, self-verifying), Windows job, 28-model scale workspace built + run in Renode. Docs: user guide, licence inventory, release readiness | 7 hardware gates + Qt licensing decision; see docs/RELEASE_READINESS.md |
 
 **Simulation caveat:** Renode validates function, not timing — virtual time is not real time, and
 USB is unmodeled. NFR-1/NFR-3 numbers come only from hardware.

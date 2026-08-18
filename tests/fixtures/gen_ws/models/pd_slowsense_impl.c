@@ -5,7 +5,7 @@
 void pd_SlowSense_init(void) {
 }
 
-void pd_SlowSense_step(const pd_SlowSense_in_t *in, pd_SlowSense_out_t *out) {
+void PD_SLOWSENSE_STEP(const pd_SlowSense_in_t *in, pd_SlowSense_out_t *out) {
     int32_t load = in->load_in;
     if (load < 0) load = -load;
     load >>= 6;
