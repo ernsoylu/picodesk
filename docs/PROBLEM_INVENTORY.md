@@ -5,7 +5,7 @@ blocks you and, within that, by what it cost or would have cost. Closed
 entries are kept deliberately: several describe traps that will recur, and
 the pattern at the end is the most useful thing in this file.
 
-Counts: **43 total — 16 open, 27 closed.**
+Counts: **43 total — 9 open, 34 closed.**
 
 ---
 
@@ -32,25 +32,30 @@ Everything downstream of the vector — record write, watchdog reboot,
 persistence across reset, boot report — is already proven by the assert
 drill, which shares that entire path.
 
-## Open — real-workspace gaps (9)
+## Open — real-workspace gaps (2 of 9 remain)
 
 The first externally authored workspace (`examples/models`, a typical
 interface-first Simulink development cycle with shared data dictionaries)
-does not survive first contact with the pipeline: extraction fails on the
-first model. The full evidence-backed register is
-[EXAMPLES_GAP_ANALYSIS.md](EXAMPLES_GAP_ANALYSIS.md); in one line each:
+did not survive first contact with the pipeline. Seven of the nine gaps are
+now **fixed and live-verified** — the workspace extracts cleanly, shared-
+dictionary edits invalidate the cache, rate groups are assigned on the
+models page and forced at codegen, generated identifiers are model-prefixed,
+and model3's interface contradiction is diagnosed at the source. The
+evidence-backed register with fix locations is
+[EXAMPLES_GAP_ANALYSIS.md](EXAMPLES_GAP_ANALYSIS.md). What remains needs a
+decision, not a patch:
 
 | ID | Gap | Trace |
 |---|---|---|
-| G-1 | Extractor can't load dictionary-attached models (model dir not on the MATLAB path) | MAT-001 |
-| G-2 | Rate-agnostic models (`FixedStepAuto`, all rates inherited) abort the whole batch instead of getting an integration-time rate assignment | RTE-002 |
-| G-3 | Coder-advisor identifier naming (`rt$N$M`) emits unprefixed `rtU`/`ExtU` — models can't link and the adapters bind symbols that don't exist | MAT-003 |
-| G-4 | Hash gate ignores `.sldd` files — a shared-dictionary edit is a silent cache hit | GUI-001 |
-| G-5 | HAL single-writer keys on the function, not `(function, hal_arg)` — two LEDs on different pins falsely collide | GUI-009 |
 | G-6 | HAL vocabulary can't express the sample: boolean GPIO, physical-units ADC, no UART input at all | GUI-006 |
-| G-7 | The interface catalogue (`Interfaces.sldd`) is not an authority — a model contradicting its declared type surfaces only as a late, misattributed bind error | GUI-008/011 |
-| G-8 | Dictionary `Simulink.Parameter` calibratables are inlined by ERT — invisible to A2L/XCP, and no tunable-parameter policy exists | GUI-012/RTE-003 |
-| G-9 | One bad model burns the engine (restart + retry) and aborts the batch instead of a per-model diagnosis | GUI-002/MAT-001 |
+| G-8 | Dictionary `Simulink.Parameter` calibratables are inlined by ERT — recorded and surfaced as a diagnostic, but a tunable-parameter policy (CAL-segment placement, A2L pickup) does not exist yet | GUI-012/RTE-003 |
+
+Closed: G-1/G-9 (dictionary path + per-model errors, engine no longer
+restarted for MATLAB-side errors), G-2 (descriptor v2 `rate_group: null`,
+routing v2 `rate_assignments`, MAT-002 at assignment, codegen rate forcing),
+G-3 (identifier rules forced at codegen), G-4 (dictionary closure hashed
+into the cache gate), G-5 (HAL writer identity is `(function, hal_arg)`),
+G-7 (extraction checks ports against the dictionary catalogue).
 
 ## Open — known limitations, not blockers (1)
 

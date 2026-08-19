@@ -254,3 +254,66 @@ def test_console_widget_renders_and_links(app) -> None:
     assert received == [("SRC/x.c", 5)]
     console.clear()
     assert console.model.counts()["lines"] == 0
+
+
+# --- integration-time rate assignment (G-2) ---------------------------------
+
+def test_unassigned_model_blocks_build_until_a_rate_is_chosen(app) -> None:
+    """A rate-agnostic model (interface-first development cycle) surfaces as
+    blocked with an assignment combo; choosing a group persists into the
+    routing config (an integration decision) and unblocks the model."""
+    from picodesk.gui.main_window import MainWindow
+
+    win = MainWindow()
+    try:
+        win.workspace.descriptor = {
+            "schema_version": 2,
+            "models": {
+                "ThermalX": {
+                    "file": "ThermalX.slx", "slx_sha256": "0" * 64,
+                    "base_rate_s": 0.2, "rate_group": None,
+                    "inports": [{"name": "t_in", "data_type": "single",
+                                 "width": 1}],
+                    "outports": [{"name": "led", "data_type": "boolean",
+                                  "width": 1}],
+                    "internal_types": ["single"],
+                },
+            },
+        }
+        win._apply_workspace()
+        assert win.models_page.blocked_models() == ["ThermalX"]
+        combo = win.models_page.table.itemWidget(
+            win.models_page.table.topLevelItem(0), 2)
+        assert combo is not None and combo.currentData() is None
+
+        # MAT-002 on assignment: single-carrying model refused for fast.
+        win.assign_rate_group("ThermalX", "fast_1ms")
+        assert win.workspace.routing.get("rate_assignments", {}) == {}
+
+        win.assign_rate_group("ThermalX", "slow_100ms")
+        assert win.workspace.routing["rate_assignments"] == {
+            "ThermalX": "slow_100ms"}
+        assert win.models_page.blocked_models() == []
+        combo = win.models_page.table.itemWidget(
+            win.models_page.table.topLevelItem(0), 2)
+        assert combo.currentData() == "slow_100ms"  # stays editable
+    finally:
+        win.close()
+
+
+def test_interface_violation_is_surfaced_not_hidden(app) -> None:
+    """G-7: a model contradicting the dictionary-declared interface shows a
+    warning state at the source, before any confusing bind error."""
+    from picodesk.gui.pages.models_page import model_state
+
+    model = {
+        "base_rate_s": 0.1, "rate_group": "slow_100ms",
+        "inports": [], "outports": [
+            {"name": "GPO_Led1_B", "data_type": "single", "width": 1}],
+        "internal_types": ["single"],
+        "interface_violations": [
+            ("outport GPO_Led1_B compiles as single but Interfaces.sldd "
+             "declares boolean")],
+    }
+    state, _colour = model_state("model3", model, stale=False)
+    assert state == "Interface mismatch"

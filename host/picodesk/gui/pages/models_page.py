@@ -12,6 +12,7 @@ from typing import Any
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
+    QComboBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -24,7 +25,7 @@ from PyQt6.QtWidgets import (
 
 from picodesk.gui import theme
 from picodesk.gui.widgets import Badge, Panel, StatusChip
-from picodesk.matlab_bridge.descriptor import FLOAT_TYPES
+from picodesk.matlab_bridge.descriptor import FLOAT_TYPES, RATE_GROUPS
 
 COLUMNS = ["MODEL", "RATE", "GROUP", "I / O", "TYPES", "HASH", "STATE"]
 
@@ -39,6 +40,14 @@ def model_state(name: str, model: dict[str, Any],
                   if t in FLOAT_TYPES]
     if model["rate_group"] == "fast_1ms" and offenders:
         return "Blocked · MAT-002", theme.ERR
+    if model["rate_group"] is None:
+        # Rate-agnostic model (G-2): generation needs every model in a
+        # dispatcher slot, so this blocks the build until assigned.
+        return "Blocked · assign rate", theme.WARN
+    if model.get("interface_violations"):
+        # Port contradicts the dictionary-declared interface (G-7). Routable,
+        # but the mismatch will surface at binding — flag it at the source.
+        return "Interface mismatch", theme.WARN
     if stale:
         return "Stale — re-export", theme.WARN
     return "Fresh", theme.OK
@@ -47,11 +56,14 @@ def model_state(name: str, model: dict[str, Any],
 class ModelsPage(QWidget):
     reimportRequested = pyqtSignal()
     rescanRequested = pyqtSignal()
+    #: (model, rate group) chosen for a rate-agnostic model (G-2).
+    rateAssigned = pyqtSignal(str, str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.descriptor: dict[str, Any] = {}
         self.stale: set[str] = set()
+        self.assigned: set[str] = set()  # groups that came from assignments
         self._build()
 
     def _build(self) -> None:
@@ -125,9 +137,14 @@ class ModelsPage(QWidget):
         self.matlab_chip.set_state(text, colour)
 
     def set_descriptor(self, descriptor: dict[str, Any],
-                       stale: set[str] | None = None) -> None:
+                       stale: set[str] | None = None,
+                       assigned: set[str] | None = None) -> None:
+        """`assigned` names models whose rate group came from an
+        integration-time assignment (G-2) rather than the model itself —
+        those stay editable through the combo."""
         self.descriptor = descriptor or {}
         self.stale = stale or set()
+        self.assigned = assigned or set()
         self._populate()
 
     def blocked_models(self) -> list[str]:
@@ -164,8 +181,12 @@ class ModelsPage(QWidget):
             for column in (1, 3, 4, 5):
                 item.setFont(column, self._mono(item.font(column)))
             self.table.addTopLevelItem(item)
-            self.table.setItemWidget(
-                item, 2, Badge.for_rate_group(model["rate_group"]))
+            if model["rate_group"] is None or name in self.assigned:
+                self.table.setItemWidget(
+                    item, 2, self._rate_combo(name, model["rate_group"]))
+            else:
+                self.table.setItemWidget(
+                    item, 2, Badge.for_rate_group(model["rate_group"]))
             state_label = QLabel(f"● {state}")
             state_label.setStyleSheet(f"color:{colour};")
             self.table.setItemWidget(item, 6, state_label)
@@ -178,6 +199,27 @@ class ModelsPage(QWidget):
             self.table.setCurrentItem(self.table.topLevelItem(0))
         else:
             self._show_detail(None)
+
+    def _rate_combo(self, name: str, current: str | None) -> QComboBox:
+        """Rate-group picker for a rate-agnostic model (G-2). The choice is
+        an integration decision, so it lands in the routing config, not the
+        model — MainWindow persists it via the rateAssigned signal."""
+        combo = QComboBox()
+        combo.setProperty("model_name", name)
+        if current is None:
+            combo.addItem("assign rate…", None)
+        for group in RATE_GROUPS:
+            combo.addItem(theme.RATE_LABELS.get(group, group), group)
+        if current is not None:
+            combo.setCurrentIndex(combo.findData(current))
+        combo.activated.connect(
+            lambda _index, c=combo: self._on_rate_chosen(c))
+        return combo
+
+    def _on_rate_chosen(self, combo: QComboBox) -> None:
+        group = combo.currentData()
+        if group is not None:
+            self.rateAssigned.emit(combo.property("model_name"), group)
 
     @staticmethod
     def _mono(font):

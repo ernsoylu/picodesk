@@ -1,13 +1,21 @@
-"""Routing configuration schema v1 + VFB validation rules (Phase 5).
+"""Routing configuration schema v2 + VFB validation rules (Phase 5).
 
 The routing config is the versioned artifact the GUI saves (GUI-003): a flat
 list of producer->consumer connections over the full mesh — any ASW model's
 outport may feed any other ASW model's inport, in either direction, plus
 HAL endpoints from hal_manifest.json (GUI-006).
 
+v1 -> v2 (G-2): optional `rate_assignments` maps a rate-agnostic model to
+the dispatcher group the integrator chose. Rate assignment is an
+INTEGRATION decision, so it lives in the routing artifact, not the model:
+the same model can run fast in one workspace and slow in another.
+`migrate_routing` upgrades v1 configs (no assignments) transparently.
+
 Validation enforced here, before any code is generated:
   - endpoints exist in the descriptor / HAL manifest
-  - exactly one writer per consumer inport (GUI-009)
+  - every routed model has a rate group — modelled or assigned (RTE-002)
+  - exactly one writer per consumer inport; for HAL endpoints the identity
+    is (function, hal_arg) — per pin/channel, not per function (GUI-009)
   - exact data type + width + fixed-point scaling match (GUI-008)
   - HAL functions bound to fast-loop models must be isr_safe (GUI-006)
 Edges are then classified (GUI-010): same rate group -> direct signal-store
@@ -21,7 +29,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-ROUTING_SCHEMA_VERSION = 1
+ROUTING_SCHEMA_VERSION = 2
 
 ROUTING_SCHEMA = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -32,6 +40,13 @@ ROUTING_SCHEMA = {
     "properties": {
         "schema_version": {"const": ROUTING_SCHEMA_VERSION},
         "workspace": {"type": "string"},
+        # Integration-time rate groups for rate-agnostic models (G-2).
+        "rate_assignments": {
+            "type": "object",
+            "propertyNames": {"pattern": r"^[A-Za-z_]\w*$"},
+            "additionalProperties": {
+                "enum": ["fast_1ms", "slow_10ms", "slow_100ms"]},
+        },
         "connections": {
             "type": "array",
             "items": {
@@ -53,6 +68,25 @@ ROUTING_SCHEMA = {
 
 class RoutingError(ValueError):
     """A validation failure the GUI surfaces verbatim."""
+
+
+def migrate_routing(routing: dict[str, Any]) -> dict[str, Any]:
+    """Upgrade an older routing config in place (GUI-003 discipline).
+
+    v1 -> v2 adds the empty `rate_assignments` map. Unknown future versions
+    raise rather than being guessed at.
+    """
+    version = routing.get("schema_version")
+    if version == ROUTING_SCHEMA_VERSION:
+        routing.setdefault("rate_assignments", {})
+        return routing
+    if version == 1:
+        routing["schema_version"] = ROUTING_SCHEMA_VERSION
+        routing.setdefault("rate_assignments", {})
+        return routing
+    raise RoutingError(
+        f"routing schema v{version} is newer than this toolchain "
+        f"understands (v{ROUTING_SCHEMA_VERSION}) — upgrade PicoDesk")
 
 
 @dataclass(frozen=True)
@@ -92,6 +126,11 @@ def _model_endpoint(descriptor: dict[str, Any], ref: str, direction: str) -> End
     model = descriptor["models"].get(owner)
     if model is None:
         raise RoutingError(f"{ref}: model {owner!r} is not in the workspace")
+    if model["rate_group"] is None:
+        raise RoutingError(
+            f"{ref}: model {owner!r} is rate-agnostic and has no rate group "
+            f"assigned — assign one (rate_assignments / the models page) "
+            f"before routing it (RTE-002)")
     ports = model["outports"] if direction == "producer" else model["inports"]
     for port in ports:
         if port["name"] == port_name:
@@ -148,10 +187,18 @@ def resolve_routing(
     hal_manifest: dict[str, dict[str, Any]],
 ) -> list[Edge]:
     """Validate the full config and return classified edges."""
+    routing = migrate_routing(dict(routing))
     validate_routing_schema(routing)
 
+    assignments = routing.get("rate_assignments", {})
+    if assignments:
+        # Applying re-runs MAT-002 per assignment; a float model assigned to
+        # the fast group fails here, before any code exists.
+        from picodesk.matlab_bridge.extractor import apply_rate_assignments
+        descriptor = apply_rate_assignments(descriptor, assignments)
+
     edges: list[Edge] = []
-    writers: dict[str, str] = {}  # consumer ref -> producer ref (GUI-009)
+    writers: dict[str, str] = {}  # writer identity -> producer ref (GUI-009)
 
     for conn in routing["connections"]:
         prod_ref, cons_ref = conn["producer"], conn["consumer"]
@@ -165,13 +212,17 @@ def resolve_routing(
                 f"model signal and are not routable"
             )
 
-        # Single writer (GUI-009).
-        if cons_ref in writers:
+        # Single writer (GUI-009). For a HAL consumer the endpoint is the
+        # (function, hal_arg) pair — hal_gpio_write on two different pins is
+        # two endpoints (G-5); the same pin twice is a genuine double-drive.
+        writer_key = (f"{cons_ref}[{hal_arg}]" if consumer.kind == "hal"
+                      else cons_ref)
+        if writer_key in writers:
             raise RoutingError(
-                f"{cons_ref} already bound to {writers[cons_ref]} — inports "
-                f"accept exactly one producer (GUI-009)"
+                f"{writer_key} already bound to {writers[writer_key]} — "
+                f"consumers accept exactly one producer (GUI-009)"
             )
-        writers[cons_ref] = prod_ref
+        writers[writer_key] = prod_ref
 
         # Array signals route like scalars; the generator copies them by
         # memcpy and GUI-008 below still demands an exact width match.

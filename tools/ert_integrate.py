@@ -33,12 +33,14 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "host"))
 
+from picodesk.matlab_bridge.descriptor import RATE_GROUP_PERIOD_S, migrate_descriptor
+from picodesk.matlab_bridge.extractor import apply_rate_assignments
 from picodesk.matlab_bridge.session import MatlabEngineSession
 from picodesk.rtegen.generator import (
     generate_ert_adapters,
     generate_rte,
 )
-from picodesk.rtegen.routing import load_hal_manifest
+from picodesk.rtegen.routing import load_hal_manifest, migrate_routing
 
 #: ERT emits these next to the model; they are shared, not per-model.
 SHARED_HEADERS = {"rtwtypes.h", "multiword_types.h", "rtw_continuous.h",
@@ -55,8 +57,16 @@ def codegen_all(session: MatlabEngineSession, descriptor: dict,
         slx = slx_dir / descriptor["models"][name].get("file", f"{name}.slx")
         if not slx.is_file():
             raise FileNotFoundError(f"{name}: {slx} not found")
-        fast = descriptor["models"][name]["rate_group"] == "fast_1ms"
-        raw = session.call("picodesk_codegen", str(slx), str(work))
+        group = descriptor["models"][name]["rate_group"]
+        if group is None:
+            raise ValueError(
+                f"{name}: no rate group — assign one in the routing config "
+                f"(rate_assignments) before integration (RTE-002)")
+        fast = group == "fast_1ms"
+        # The assigned rate is FORCED at codegen (G-2): a rate-agnostic model
+        # is generated at exactly the dispatcher slot it was assigned to.
+        raw = session.call("picodesk_codegen", str(slx), str(work),
+                           float(RATE_GROUP_PERIOD_S[group]))
         info = json.loads(raw)
         gen_dir = Path(info["dir"])
         # tmwinternal/ and slprj/ hold build bookkeeping, not model code.
@@ -136,8 +146,14 @@ def main(argv: list[str] | None = None) -> int:
                         default=REPO / "target" / "hal" / "hal_manifest.json")
     args = parser.parse_args(argv)
 
-    descriptor = json.loads(args.descriptor.read_text(encoding="utf-8"))
-    routing = json.loads(args.routing.read_text(encoding="utf-8"))
+    descriptor = migrate_descriptor(
+        json.loads(args.descriptor.read_text(encoding="utf-8")))
+    routing = migrate_routing(
+        json.loads(args.routing.read_text(encoding="utf-8")))
+    # Integration-time rate assignments (G-2) apply before codegen, so the
+    # forced solver rate and the dispatcher tables agree by construction.
+    descriptor = apply_rate_assignments(
+        descriptor, routing.get("rate_assignments", {}))
 
     print("generating RTE...")
     generate_rte(descriptor, routing, load_hal_manifest(args.hal_manifest),

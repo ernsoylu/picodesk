@@ -30,7 +30,12 @@ class Badge(QLabel):
                            QSizePolicy.Policy.Maximum)
 
     @classmethod
-    def for_rate_group(cls, group: str, parent: QWidget | None = None) -> Badge:
+    def for_rate_group(cls, group: str | None,
+                       parent: QWidget | None = None) -> Badge:
+        if group is None:
+            # Rate-agnostic model awaiting an integration-time assignment
+            # (G-2); the models page pairs this with an assignment combo.
+            return cls("UNASSIGNED", theme.WARN, theme.BG_ELEVATED, parent)
         fg, bg = theme.RATE_COLORS.get(
             group, (theme.TEXT_SECONDARY, theme.BG_ELEVATED))
         return cls(theme.RATE_LABELS.get(group, group.upper()), fg, bg, parent)

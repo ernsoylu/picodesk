@@ -4,11 +4,22 @@ function json = picodesk_extract(slxPath)
 %   json = picodesk_extract('/path/to/Model.slx')
 %
 % Loads the model, compiles its interface, and returns a JSON object with
-% base_rate_s, inports, outports (name/data_type/width/slope/bias), and the
+% base_rate_s, inports, outports (name/data_type/width/slope/bias), the
 % compiled internal data types (basis of the MAT-002 fast-loop float check
-% on the Python side). Runs inside the persistent engine session (GUI-002).
+% on the Python side), the model's data-dictionary closure, and the
+% interface catalogue those dictionaries declare.
+%
+% The model's own directory goes on the MATLAB path for the duration of the
+% call: data dictionaries attach by NAME and resolve through the path, so
+% without this a dictionary-attached model fails to load at all (G-1).
+% Dictionaries opened as a side effect are closed on cleanup so back-to-back
+% extractions cannot collide on dictionary state.
 
-[~, modelName] = fileparts(slxPath);
+[modelDir, modelName] = fileparts(slxPath);
+addpath(modelDir);
+restorePath = onCleanup(@() rmpath(modelDir));
+closeDicts = onCleanup(@() picodesk_close_dictionaries());
+
 load_system(slxPath);
 
 % Compile to resolve port data types and sample times. A single cleanup
@@ -24,6 +35,13 @@ info.inports = picodesk_ports(modelName, 'Inport');
 info.outports = picodesk_ports(modelName, 'Outport');
 info.internal_types = picodesk_internal_types(modelName);
 
+% Data-dictionary closure (attached dictionary + every referenced one),
+% resolved to absolute paths. The Python side hashes these files alongside
+% the .slx so a dictionary edit invalidates the cache (GUI-001, G-4), and
+% checks ports against the declared interface catalogue (G-7).
+[info.dictionaries, info.interface_catalog] = ...
+    picodesk_dictionary_closure(modelName);
+
 json = jsonencode(info);
 end
 
@@ -34,6 +52,72 @@ catch
     % already terminated
 end
 close_system(modelName, 0);
+end
+
+function picodesk_close_dictionaries()
+try
+    Simulink.data.dictionary.closeAll('-discard');
+catch
+    % nothing open
+end
+end
+
+function [files, catalog] = picodesk_dictionary_closure(modelName)
+files = {};
+catalog = {};
+attached = get_param(modelName, 'DataDictionary');
+if isempty(attached)
+    return
+end
+pending = {attached};
+seen = containers.Map('KeyType', 'char', 'ValueType', 'logical');
+while ~isempty(pending)
+    name = pending{1};
+    pending(1) = [];
+    if isKey(seen, name)
+        continue
+    end
+    seen(name) = true;
+    resolved = which(name);
+    if isempty(resolved)
+        % Unresolvable reference: report the bare name; the Python side
+        % turns a missing file into a per-model diagnosis, not a crash.
+        files{end + 1} = name; %#ok<AGROW>
+        continue
+    end
+    files{end + 1} = resolved; %#ok<AGROW>
+    dd = Simulink.data.dictionary.open(name);
+    pending = [pending, dd.DataSources]; %#ok<AGROW>
+    catalog = [catalog, picodesk_catalog_entries(dd, name)]; %#ok<AGROW>
+end
+end
+
+function entries = picodesk_catalog_entries(dd, dictName)
+% Simulink.Signal entries are the declared interface contract; parameters
+% are reported too so the host can warn when they will be inlined (G-8).
+entries = {};
+sec = getSection(dd, 'Design Data');
+found = find(sec); %#ok<GTARG>
+for i = 1:numel(found)
+    entry = found(i);
+    try
+        value = getValue(entry);
+    catch
+        continue
+    end
+    e = struct();
+    e.name = entry.Name;
+    e.dictionary = dictName;
+    e.class = class(value);
+    if isprop(value, 'DataType')
+        e.data_type = char(value.DataType);
+    else
+        e.data_type = '';
+    end
+    if strcmp(e.class, 'Simulink.Parameter') || strcmp(e.class, 'Simulink.Signal')
+        entries{end + 1} = e; %#ok<AGROW>
+    end
+end
 end
 
 function rate = picodesk_base_rate(modelName)

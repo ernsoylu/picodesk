@@ -205,6 +205,14 @@ def generate_rte(descriptor: dict[str, Any], routing: dict[str, Any],
     """Validate, build the context, and render all generated sources."""
     import jinja2
 
+    # Integration-time rate assignments (G-2) must reach build_context too,
+    # not just routing's own validation copy — the dispatcher tables are
+    # built from the descriptor's rate groups.
+    assignments = routing.get("rate_assignments", {})
+    if assignments:
+        from picodesk.matlab_bridge.extractor import apply_rate_assignments
+        descriptor = apply_rate_assignments(descriptor, assignments)
+
     edges = resolve_routing(descriptor, routing, hal_manifest)
     context = build_context(descriptor, edges)
 

@@ -39,6 +39,10 @@ from picodesk.gui.pages.models_page import ModelsPage
 from picodesk.gui.pages.routing_page import RoutingPage
 from picodesk.gui.widgets import StatusChip
 from picodesk.gui.workers import submit
+from picodesk.matlab_bridge.extractor import (
+    FloatInFastLoopError,
+    apply_rate_assignments,
+)
 from picodesk.rtegen.routing import load_hal_manifest
 from picodesk.xcp.master import DaqSignal, Parameter, PyxcpBackend, XcpMaster
 from picodesk.xcp.mdf4_logger import Mdf4Logger, SignalSpec
@@ -198,6 +202,7 @@ class MainWindow(QMainWindow):
 
         self.models_page.reimportRequested.connect(self.open_model_directory)
         self.models_page.rescanRequested.connect(self.rescan_models)
+        self.models_page.rateAssigned.connect(self.assign_rate_group)
         self.routing_page.routingChanged.connect(self._on_routing_changed)
         self.build_page.buildRequested.connect(self.start_build)
         self.calibration_page.connectRequested.connect(self.toggle_xcp_link)
@@ -269,19 +274,66 @@ class MainWindow(QMainWindow):
         self.sidebar.workspace_label.setText(path.name)
         self._apply_workspace()
 
-    def _apply_workspace(self) -> None:
+    def _effective_descriptor(self) -> tuple[dict[str, Any], set[str]]:
+        """The descriptor with integration-time rate assignments applied
+        (G-2), plus which models got their group that way. An assignment the
+        descriptor now rejects (model gone, or MAT-002 on a fast group) is
+        dropped with a console diagnosis rather than wedging the workspace.
+        """
         descriptor = self.workspace.descriptor
-        self.models_page.set_descriptor(descriptor)
+        assignments = dict(
+            self.workspace.routing.get("rate_assignments", {}))
+        if not descriptor.get("models") or not assignments:
+            return descriptor, set()
+        try:
+            return apply_rate_assignments(descriptor, assignments), \
+                set(assignments)
+        except (FloatInFastLoopError, ValueError) as exc:
+            self.console.append_line(f"[models] rate assignment dropped: {exc}")
+            self.workspace.routing["rate_assignments"] = {}
+            return descriptor, set()
+
+    def _apply_workspace(self) -> None:
+        descriptor, assigned = self._effective_descriptor()
+        self.models_page.set_descriptor(descriptor, assigned=assigned)
         self.routing_page.load(descriptor, self.workspace.routing,
                                self.hal_manifest)
         self.build_page.set_blocked_models(self.models_page.blocked_models())
         self._update_sizing()
 
+    def assign_rate_group(self, model: str, group: str) -> None:
+        """Persist a rate-group choice for a rate-agnostic model (G-2).
+
+        The choice is an integration decision, so it lands in the routing
+        config (rate_assignments) — the same model may run in a different
+        slot in another workspace. MAT-002 runs on application: assigning a
+        float-carrying model to the fast group is refused here, before any
+        code exists."""
+        assignments = self.workspace.routing.setdefault("rate_assignments", {})
+        previous = assignments.get(model)
+        assignments[model] = group
+        try:
+            apply_rate_assignments(self.workspace.descriptor, {model: group})
+        except (FloatInFastLoopError, ValueError) as exc:
+            if previous is None:
+                assignments.pop(model, None)
+            else:
+                assignments[model] = previous
+            self.console.append_line(f"[models] {exc}")
+        else:
+            self.console.append_line(
+                f"[models] {model} assigned to {group} (RTE-002)")
+        self._apply_workspace()
+
     def _update_sizing(self) -> None:
-        if not self.workspace.descriptor.get("models"):
+        descriptor, _ = self._effective_descriptor()
+        if not descriptor.get("models"):
             return
-        report = sz.estimate_footprint(self.workspace.descriptor,
-                                       self.workspace.routing)
+        if any(m["rate_group"] is None for m in descriptor["models"].values()):
+            # BLD-004 needs every model in a dispatcher slot; sizing an
+            # incomplete assignment would report a number that means nothing.
+            return
+        report = sz.estimate_footprint(descriptor, self.workspace.routing)
         self.build_page.set_sizing(report)
 
     def _on_routing_changed(self) -> None:

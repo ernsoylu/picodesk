@@ -52,6 +52,76 @@ def test_single_writer_enforced(descriptor, routing, hal) -> None:
         resolve_routing(descriptor, routing, hal)
 
 
+def test_hal_writer_identity_is_per_pin(descriptor, routing, hal) -> None:
+    """G-5: hal_gpio_write on two different pins is two endpoints — the
+    sample workspace drives two LEDs through the same HAL function. The same
+    pin twice stays a genuine double-drive."""
+    descriptor["models"]["SlowSense"]["outports"].append(
+        {"name": "led_b", "data_type": "uint8", "width": 1,
+         "slope": 1.0, "bias": 0.0})
+    routing["connections"] = [
+        {"producer": "SlowSense.derate_pct", "consumer": "hal.hal_gpio_write",
+         "hal_arg": 24},
+        {"producer": "SlowSense.led_b", "consumer": "hal.hal_gpio_write",
+         "hal_arg": 25},
+    ]
+    edges = resolve_routing(descriptor, routing, hal)  # two pins: legal
+    assert [e.consumer.hal_arg for e in edges] == [24, 25]
+
+    routing["connections"][1]["hal_arg"] = 24  # same pin: double-drive
+    with pytest.raises(RoutingError, match="GUI-009"):
+        resolve_routing(descriptor, routing, hal)
+
+
+def test_unassigned_rate_group_blocks_routing(descriptor, routing, hal) -> None:
+    """G-2: a rate-agnostic model cannot be routed until a group is
+    assigned; the error names the remedy."""
+    descriptor["models"]["SlowSense"]["rate_group"] = None
+    with pytest.raises(RoutingError, match="rate_assignments"):
+        resolve_routing(descriptor, routing, hal)
+
+
+def test_rate_assignment_flows_through_routing_and_generation(
+        descriptor, routing, hal, tmp_path: Path) -> None:
+    """G-2 end to end: the assignment classifies edges AND reaches the
+    generated dispatcher tables."""
+    descriptor["models"]["SlowSense"]["rate_group"] = None
+    routing["rate_assignments"] = {"SlowSense": "slow_100ms"}
+
+    edges = resolve_routing(descriptor, routing, hal)
+    mechanisms = {(e.producer.owner, e.consumer.owner): e.mechanism
+                  for e in edges}
+    assert mechanisms[("FastCtrl", "SlowSense")] == "zoh_seqlock"
+
+    written = generate_rte(descriptor, routing, hal, tmp_path)
+    rte_c = (tmp_path / "rte_gen.c").read_text()
+    assert "slow_100ms" in rte_c
+    assert descriptor["models"]["SlowSense"]["rate_group"] is None, \
+        "generate_rte mutated the caller's descriptor"
+    assert written
+
+
+def test_assigning_float_model_to_fast_fails_before_codegen(
+        descriptor, routing, hal) -> None:
+    """MAT-002 re-runs at assignment time (G-2)."""
+    descriptor["models"]["SlowSense"]["rate_group"] = None
+    descriptor["models"]["SlowSense"]["internal_types"] = ["double"]
+    routing["rate_assignments"] = {"SlowSense": "fast_1ms"}
+    from picodesk.matlab_bridge.extractor import FloatInFastLoopError
+    with pytest.raises(FloatInFastLoopError, match="MAT-002"):
+        resolve_routing(descriptor, routing, hal)
+
+
+def test_routing_v1_config_migrates_transparently(descriptor, routing, hal) -> None:
+    """GUI-003: the fixture is schema v1; v2 code accepts it via migration
+    and a future version is refused rather than guessed at."""
+    assert routing["schema_version"] == 1
+    assert resolve_routing(descriptor, routing, hal)
+    from picodesk.rtegen.routing import migrate_routing
+    with pytest.raises(RoutingError, match="newer"):
+        migrate_routing({"schema_version": 99, "connections": []})
+
+
 def test_type_mismatch_rejected(descriptor, routing, hal) -> None:
     routing["connections"] = [
         {"producer": "FastCtrl.torque_cmd", "consumer": "FastCtrl.derate_in"}]

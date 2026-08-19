@@ -40,6 +40,15 @@ class MatlabSessionError(RuntimeError):
     """The engine is unavailable and could not be recovered."""
 
 
+class MatlabCallError(RuntimeError):
+    """The MATLAB code raised — the engine itself is alive (G-9).
+
+    Callers treat this as data about the call's subject (a broken model, a
+    bad argument), never as a session failure: restarting a healthy engine
+    costs a cold start and, in a batch, used to abort every remaining model.
+    """
+
+
 class EngineProtocol(Protocol):
     """The slice of matlab.engine the session uses (seam for tests)."""
 
@@ -79,20 +88,30 @@ class MatlabEngineSession:
 
     def call(self, function: str, *args: Any, nargout: int = 1) -> Any:
         """feval with crash recovery: a dead engine is restarted exactly once
-        and the call retried; a second failure propagates."""
+        and the call retried; a second failure propagates.
+
+        A MATLAB *execution* error is not a crash — the engine is alive and
+        the error describes the call's subject (e.g. a model that cannot
+        load). Those surface as MatlabCallError immediately, with no restart
+        (G-9); only engine-level failures take the restart path (GUI-002).
+        """
         self.start()
         assert self._engine is not None
         try:
             return self._engine.feval(function, *args, nargout=nargout)
         except MatlabSessionError:
             raise
-        except Exception as first_error:  # noqa: BLE001 — crash type is engine-specific
+        except Exception as first_error:
+            if _is_execution_error(first_error):
+                raise MatlabCallError(str(first_error)) from first_error
             self._engine = None  # presume dead; cold-start replacement
             try:
                 self.start()
                 assert self._engine is not None
                 return self._engine.feval(function, *args, nargout=nargout)
             except Exception as second_error:
+                if _is_execution_error(second_error):
+                    raise MatlabCallError(str(second_error)) from second_error
                 raise MatlabSessionError(
                     f"MATLAB call {function!r} failed twice (engine restarted "
                     f"in between): {first_error}; then: {second_error}"
@@ -121,6 +140,14 @@ def check_python_alignment(matlab_release: str) -> str | None:
             f"not match MATLAB {matlab_release} engine support ({versions})"
         )
     return None
+
+
+def _is_execution_error(exc: Exception) -> bool:
+    """MATLAB-side errors arrive as matlab.engine.MatlabExecutionError (and
+    SyntaxError for malformed calls); both mean the engine is alive. Detected
+    by class name so matlabengine stays an optional import and test fakes can
+    raise a same-named class without depending on MATLAB."""
+    return type(exc).__name__ in ("MatlabExecutionError", "MatlabSyntaxError")
 
 
 def _default_engine_factory() -> EngineProtocol:

@@ -44,3 +44,8 @@ snapshots/
 /build-scale*/
 /build-traceability.md
 /build-ert*/
+
+# MATLAB/Simulink build debris next to example models
+examples/models/slprj/
+examples/models/*_ert_rtw/
+examples/models/*.slxc

@@ -8,10 +8,21 @@ gap that surfaced — each with evidence, a requirement trace, and a proposed
 fix. Everything here was verified against the live R2025b installation, not
 inferred from reading files.
 
-**Headline: the workspace does not survive first contact.** Batch extraction
-fails on the first model before reaching a single port. Behind that blocker
-sit two more that would each stop the pipeline on their own, and a tail of
-correctness gaps that would bite later and quieter.
+**Status: closed except for the two scope decisions.** G-1 through G-5, G-7
+and G-9 are fixed and verified — the workspace now extracts cleanly on live
+R2025b (all three models, zero errors), a shared-dictionary edit invalidates
+every attached model, model3's interface contradiction is diagnosed at the
+source, rate groups are assigned on the models page and forced at codegen,
+and generated identifiers are model-prefixed regardless of the advisor
+naming the models carry. Live regressions in `tests/matlab_live/` keep it
+that way. G-6 (HAL vocabulary) and G-8 (tunable-parameter policy) remain
+open scope decisions.
+
+**The original headline, kept for the record: the workspace did not survive
+first contact.** Batch extraction failed on the first model before reaching a
+single port. Behind that blocker sat two more that would each have stopped
+the pipeline on their own, and a tail of correctness gaps that would have
+bitten later and quieter.
 
 ## 1. What the sample demonstrates
 
@@ -78,7 +89,7 @@ are.
 Ordered by where the pipeline stops. G-1..G-3 are hard blockers observed in
 sequence; the rest were established by targeted probes.
 
-### G-1 · Extraction cannot load a dictionary-attached model — **blocker**
+### G-1 · Extraction cannot load a dictionary-attached model — **fixed**
 
 `extract_models` on `examples/models` fails on model1 with *"Unable to find
 data dictionary 'model1.sldd'"*, is retried through a full engine restart
@@ -95,7 +106,7 @@ cleanup), and close opened dictionaries (`Simulink.data.dictionary.closeAll`)
 so back-to-back extractions don't collide on dictionary state.
 *(MAT-001; mechanical.)*
 
-### G-2 · Rate-agnostic models kill the batch — **blocker**
+### G-2 · Rate-agnostic models kill the batch — **fixed**
 
 All three models compile to `base_rate_s = 0.2` (MATLAB's choice for
 `FixedStepAuto` with everything inherited). `rate_group_for()` demands
@@ -119,7 +130,7 @@ against the *assigned* group: model2/model3 carry `single`, so assigning them
 `fast_1ms` must hard-error exactly as a modelled 1 ms float does today.
 *(RTE-002 / MAT-002 / GUI-001; needs the policy decision, then mechanical.)*
 
-### G-3 · Advisor identifier naming breaks linking and the adapters — **blocker**
+### G-3 · Advisor identifier naming breaks linking and the adapters — **fixed**
 
 The user's models carry the Coder advisor's naming rules
 (`CustomSymbolStrGlobalVar = rt$N$M`, `CustomSymbolStrType = $N$M`), and the
@@ -137,7 +148,7 @@ whatever the model carries. The step/init functions are already prefixed
 (`$R$N$M$F` is untouched by the advisor). *(MAT-003; mechanical, and makes
 the pipeline robust to any user config.)*
 
-### G-4 · Hash gating is blind to dictionaries
+### G-4 · Hash gating is blind to dictionaries — **fixed**
 
 GUI-001's staleness signal hashes the `.slx` bytes only. Editing `Thres_T`
 in `model2.sldd`, or a type in the shared `Interfaces.sldd`, changes model
@@ -151,7 +162,7 @@ extraction into the descriptor), so a dictionary edit invalidates every
 model attached to it — which is precisely the semantics a shared
 `Interfaces.sldd` needs. *(GUI-001 / NFR-2; mechanical once G-1 lands.)*
 
-### G-5 · HAL single-writer keys on the function, not the pin
+### G-5 · HAL single-writer keys on the function, not the pin — **fixed**
 
 `resolve_routing` tracks writers by bare consumer ref, so routing
 `GPO_Led1_B → hal.hal_gpio_write` (pin A) and `GPO_Led2_B →
@@ -165,7 +176,7 @@ still be rejected — model2 and model3 both drive `GPO_Led1_B`, and routing
 both to one pin is a genuine double-drive the check exists to catch.
 *(GUI-009; mechanical.)*
 
-### G-6 · The HAL vocabulary cannot express the sample's endpoints
+### G-6 · The HAL vocabulary cannot express the sample's endpoints — **open (scope)**
 
 Three mismatches between `hal_manifest.json` and the interface catalogue:
 
@@ -185,7 +196,7 @@ the MAT-002-friendly answer: raw uint16 ADC → slow conversion model →
 single). UART input needs a real design (protocol, ownership vs stdio) —
 flag, don't improvise. *(GUI-006 / GUI-008.)*
 
-### G-7 · The interface catalogue is not an authority anywhere
+### G-7 · The interface catalogue is not an authority anywhere — **fixed** (diagnostics)
 
 `Interfaces.sldd` declares `GPO_Led1_B: boolean`. model3 compiles it as
 `single` — the inherited type propagates from `ADC_Temp1_T` straight through
@@ -204,7 +215,7 @@ catalogue read powers GUI-011: name+type suggestions straight from the
 interface dictionary instead of pairwise port comparison. *(GUI-008 /
 GUI-011; small once G-1 lands.)*
 
-### G-8 · The sample's one calibration parameter is invisible to XCP
+### G-8 · The sample's one calibration parameter is invisible to XCP — **open (policy)**
 
 `Thres_T` is the sample's tunable — and it is not tunable.
 `DefaultParameterBehavior=Inlined` (verified) plus storage class `Auto`
@@ -222,7 +233,7 @@ for RTE structures. Until then, the honest behaviour is a diagnostic:
 "model2 defines parameter Thres_T which will be inlined and untunable."
 *(GUI-012 / RTE-003 / CAL-002.)*
 
-### G-9 · One bad model burns the engine and the batch
+### G-9 · One bad model burns the engine and the batch — **fixed**
 
 Observed while hitting G-1: an ordinary per-model problem is escalated to a
 session failure — the engine is killed and restarted (GUI-002's crash
@@ -249,16 +260,35 @@ Verified against the sample, for balance:
 - Fan-out of one producer to many consumers (`ADC_Temp1_T` → model2 and
   model3) is already legal in routing, as it should be.
 
-## 4. Recommended order
+## 4. How the fixes landed
 
-| Step | Gaps | Character |
-|---|---|---|
-| 1 | G-1, G-3, G-9 | Mechanical; unblocks extraction and linking with no policy questions |
-| 2 | G-4, G-5 | Mechanical correctness; small |
-| 3 | G-2 | One policy decision (integration-time rate assignment), then mechanical |
-| 4 | G-7 | Small, high-leverage diagnostics once dictionaries are readable |
-| 5 | G-6, G-8 | Scope decisions: HAL vocabulary (boolean GPIO, physical units, UART) and the tunable-parameter policy |
+| Gaps | Where |
+|---|---|
+| G-1 | `picodesk_extract.m` / `picodesk_codegen.m` put the model directory on the MATLAB path and close dictionaries on cleanup |
+| G-2 | Descriptor v2 allows `rate_group: null`; the models page shows an assignment combo; the choice persists as `rate_assignments` in the routing config (v2, an integration decision); MAT-002 re-runs at assignment; `picodesk_codegen` forces the assigned fixed step |
+| G-3 | `picodesk_codegen.m` forces the factory identifier rules (`$R$N$M` / `$N$R$M_T` / `$N$M`) over whatever the model carries; verified live — `model1_U` / `ExtU_model1_T`, no `rtU` |
+| G-4 | The extractor records the dictionary closure with content hashes into the descriptor; a cache hit requires the closure byte-identical too; verified live — touching `Interfaces.sldd` invalidates all three models |
+| G-5 | The single-writer identity for HAL consumers is `(function, hal_arg)`; two LEDs on two pins route, the same pin twice is still refused |
+| G-7 | Ports are checked against the dictionary's `Simulink.Signal` entries at extraction; violations land in the descriptor and the models page shows "Interface mismatch" — model3's contradiction is the living test case |
+| G-9 | The session distinguishes MATLAB execution errors (engine alive, `MatlabCallError`, no restart) from crashes; the extractor records per-model errors and continues |
 
-Steps 1–4 make the sample extract, classify, route and link. Step 5 is what
-makes it *mean* something on the bench: LEDs that light and a threshold you
-can tune over XCP.
+Live regressions: `tests/matlab_live/test_live_matlab.py` extracts the
+committed `examples/models` workspace end to end, exercises the shared-
+dictionary invalidation against real `.sldd` files, and asserts the codegen
+identifier forcing on `model1`.
+
+## 5. The two remaining decisions
+
+**G-6, HAL vocabulary.** Options: (a) add boolean GPIO endpoints and document
+the conditioning-model idiom for physical-units ADC (raw `uint16` → slow
+conversion model → `single`), leaving UART input as designed-later work;
+(b) also design the UART input channel now (protocol framing, ownership vs
+stdio/telemetry); (c) sanction boolean↔uint8 coercion at HAL edges instead
+of new endpoints, relaxing GUI-008 at the HAL boundary only.
+
+**G-8, tunable parameters.** Options: (a) diagnostic only (current state:
+`dictionary_parameters` is recorded and surfaced); (b) a calibration policy —
+codegen sets `DefaultParameterBehavior=Tunable` for opted-in parameters,
+places them in the CAL segment, and the DWARF→A2L path picks them up so
+`Thres_T` becomes adjustable over XCP (RTE-003/GUI-012); that is a real
+design task touching codegen, the linker script and the CAL-page layout.

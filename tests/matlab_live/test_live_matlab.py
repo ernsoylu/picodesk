@@ -67,7 +67,8 @@ def workspace(session, tmp_path_factory) -> Path:
 def test_real_extraction_of_reference_models(session, workspace, tmp_path) -> None:
     spy = SpySession(session)
     cache = ExtractionCache(tmp_path / "cache.json")
-    descriptor, hits = extract_models(spy, workspace / "good", cache)
+    descriptor, hits, errors = extract_models(spy, workspace / "good", cache)
+    assert errors == {}
 
     fast = descriptor["models"]["FastCtrl"]
     assert fast["rate_group"] == "fast_1ms"
@@ -100,9 +101,87 @@ def test_rescan_costs_zero_engine_calls(session, workspace, tmp_path) -> None:
     cache.save()
 
     spy = SpySession(session)
-    _, hits = extract_models(spy, workspace / "good", ExtractionCache(cache_file))
+    _, hits, _ = extract_models(spy, workspace / "good", ExtractionCache(cache_file))
     assert spy.extract_calls == 0
     assert all(hits.values())
+
+
+EXAMPLES = Path(__file__).resolve().parents[2] / "examples" / "models"
+
+examples_required = pytest.mark.skipif(
+    not EXAMPLES.is_dir(), reason="examples/models workspace not present")
+
+
+@examples_required
+def test_examples_workspace_extracts_end_to_end(session, tmp_path) -> None:
+    """The reference workspace (interface-first, shared data dictionaries,
+    rate-agnostic models) extracts without a single failure — G-1/G-2/G-7 as
+    a living regression, not a one-off investigation."""
+    cache = ExtractionCache(tmp_path / "cache.json")
+    desc, _hits, errors = extract_models(session, EXAMPLES, cache)
+    assert errors == {}
+    assert sorted(desc["models"]) == ["model1", "model2", "model3"]
+
+    for model in desc["models"].values():
+        # Rate-agnostic by design: assigned at integration time (G-2).
+        assert model["rate_group"] is None
+        # The dictionary closure is recorded with hashes (G-4), including
+        # the shared Interfaces.sldd, relative to the workspace.
+        files = [d["file"] for d in model["dictionaries"]]
+        assert "Interfaces.sldd" in files
+        assert all(not f.startswith("/") for f in files)
+
+    # model3 contradicts the declared interface; diagnosed at the source (G-7).
+    assert desc["models"]["model3"]["interface_violations"] == [
+        ("outport GPO_Led1_B compiles as single but Interfaces.sldd "
+         "declares boolean")]
+    assert "interface_violations" not in desc["models"]["model1"]
+    # The dictionary calibratable is surfaced for the G-8 diagnostic.
+    assert desc["models"]["model2"]["dictionary_parameters"] == [
+        {"name": "Thres_T", "data_type": "single", "dictionary": "model2.sldd"}]
+
+
+@examples_required
+def test_shared_dictionary_edit_invalidates_every_attached_model(
+        session, tmp_path) -> None:
+    """G-4 against real dictionaries: touching Interfaces.sldd misses the
+    cache for all three models even though no .slx changed."""
+    cache_file = tmp_path / "cache.json"
+    cache = ExtractionCache(cache_file)
+    extract_models(session, EXAMPLES, cache)
+    cache.save()
+
+    _, rescan_hits, _ = extract_models(session, EXAMPLES,
+                                       ExtractionCache(cache_file))
+    assert all(rescan_hits.values()), "unchanged workspace must be all hits"
+
+    shared = EXAMPLES / "Interfaces.sldd"
+    original = shared.read_bytes()
+    shared.write_bytes(original + b" ")
+    try:
+        _, hits, errors = extract_models(session, EXAMPLES,
+                                         ExtractionCache(cache_file))
+        assert errors == {}
+        assert not any(hits.values()), "dictionary edit must invalidate"
+    finally:
+        shared.write_bytes(original)
+
+
+@examples_required
+def test_codegen_forces_prefixed_identifiers_and_the_assigned_rate(
+        session, tmp_path) -> None:
+    """G-3: the Coder advisor's rt$N$M naming (rtU/ExtU, unprefixed — the
+    shipped model1_ert_rtw is the evidence) is overridden at codegen so
+    thirty models can link (MAT-003); the assigned dispatcher rate is forced
+    at the same time (G-2)."""
+    session.call("picodesk_codegen", str(EXAMPLES / "model1.slx"),
+                 str(tmp_path), 0.01)
+    code = (tmp_path / "model1_ert_rtw" / "model1.c").read_text()
+    header = (tmp_path / "model1_ert_rtw" / "model1.h").read_text()
+    assert "model1_U;" in code and "model1_Y;" in code
+    assert "ExtU_model1_T" in header
+    assert "rtU" not in code, "advisor naming leaked through"
+    assert "void model1_step(void)" in code
 
 
 def test_session_survives_engine_kill(session) -> None:
