@@ -5,7 +5,7 @@ blocks you and, within that, by what it cost or would have cost. Closed
 entries are kept deliberately: several describe traps that will recur, and
 the pattern at the end is the most useful thing in this file.
 
-Counts: **34 total — 7 open, 27 closed.**
+Counts: **43 total — 16 open, 27 closed.**
 
 ---
 
@@ -31,6 +31,26 @@ O-6 is the only true emulator limitation rather than a timing gate.
 Everything downstream of the vector — record write, watchdog reboot,
 persistence across reset, boot report — is already proven by the assert
 drill, which shares that entire path.
+
+## Open — real-workspace gaps (9)
+
+The first externally authored workspace (`examples/models`, a typical
+interface-first Simulink development cycle with shared data dictionaries)
+does not survive first contact with the pipeline: extraction fails on the
+first model. The full evidence-backed register is
+[EXAMPLES_GAP_ANALYSIS.md](EXAMPLES_GAP_ANALYSIS.md); in one line each:
+
+| ID | Gap | Trace |
+|---|---|---|
+| G-1 | Extractor can't load dictionary-attached models (model dir not on the MATLAB path) | MAT-001 |
+| G-2 | Rate-agnostic models (`FixedStepAuto`, all rates inherited) abort the whole batch instead of getting an integration-time rate assignment | RTE-002 |
+| G-3 | Coder-advisor identifier naming (`rt$N$M`) emits unprefixed `rtU`/`ExtU` — models can't link and the adapters bind symbols that don't exist | MAT-003 |
+| G-4 | Hash gate ignores `.sldd` files — a shared-dictionary edit is a silent cache hit | GUI-001 |
+| G-5 | HAL single-writer keys on the function, not `(function, hal_arg)` — two LEDs on different pins falsely collide | GUI-009 |
+| G-6 | HAL vocabulary can't express the sample: boolean GPIO, physical-units ADC, no UART input at all | GUI-006 |
+| G-7 | The interface catalogue (`Interfaces.sldd`) is not an authority — a model contradicting its declared type surfaces only as a late, misattributed bind error | GUI-008/011 |
+| G-8 | Dictionary `Simulink.Parameter` calibratables are inlined by ERT — invisible to A2L/XCP, and no tunable-parameter policy exists | GUI-012/RTE-003 |
+| G-9 | One bad model burns the engine (restart + retry) and aborts the batch instead of a per-model diagnosis | GUI-002/MAT-001 |
 
 ## Open — known limitations, not blockers (1)
 
