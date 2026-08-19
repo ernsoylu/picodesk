@@ -56,11 +56,12 @@ def test_hal_writer_identity_is_per_pin(descriptor, routing, hal) -> None:
     """G-5: hal_gpio_write on two different pins is two endpoints — the
     sample workspace drives two LEDs through the same HAL function. The same
     pin twice stays a genuine double-drive."""
-    descriptor["models"]["SlowSense"]["outports"].append(
-        {"name": "led_b", "data_type": "uint8", "width": 1,
-         "slope": 1.0, "bias": 0.0})
+    for name in ("led_a", "led_b"):
+        descriptor["models"]["SlowSense"]["outports"].append(
+            {"name": name, "data_type": "boolean", "width": 1,
+             "slope": 1.0, "bias": 0.0})
     routing["connections"] = [
-        {"producer": "SlowSense.derate_pct", "consumer": "hal.hal_gpio_write",
+        {"producer": "SlowSense.led_a", "consumer": "hal.hal_gpio_write",
          "hal_arg": 24},
         {"producer": "SlowSense.led_b", "consumer": "hal.hal_gpio_write",
          "hal_arg": 25},

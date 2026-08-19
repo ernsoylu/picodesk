@@ -47,8 +47,8 @@ decision, not a patch:
 
 | ID | Gap | Trace |
 |---|---|---|
-| G-6 | HAL vocabulary can't express the sample: boolean GPIO, physical-units ADC, no UART input at all | GUI-006 |
-| G-8 | Dictionary `Simulink.Parameter` calibratables are inlined by ERT — recorded and surfaced as a diagnostic, but a tunable-parameter policy (CAL-segment placement, A2L pickup) does not exist yet | GUI-012/RTE-003 |
+| G-6 | **Narrowed to UART input only:** GPIO endpoints are boolean and the conditioning-model idiom covers physical-units ADC (see the user guide + `examples/routing.json`); a UART input channel still needs a design — UART0 is owned by stdio/telemetry | GUI-006 |
+| G-8 | Dictionary `Simulink.Parameter` calibratables are inlined by ERT — recorded and surfaced as a diagnostic, but a tunable-parameter policy (CAL-segment placement, A2L pickup) does not exist yet — **in progress by decision: full policy** | GUI-012/RTE-003 |
 
 Closed: G-1/G-9 (dictionary path + per-model errors, engine no longer
 restarted for MATLAB-side errors), G-2 (descriptor v2 `rate_group: null`,

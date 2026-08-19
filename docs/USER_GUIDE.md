@@ -43,8 +43,25 @@ The STATE column answers "can this build right now?":
 | State | Meaning | Action |
 |---|---|---|
 | Fresh | extracted, hash matches | — |
-| Stale — re-export | the `.slx` changed since extraction (GUI-001) | Re-scan |
+| Stale — re-export | the `.slx` or an attached data dictionary changed since extraction (GUI-001) | Re-scan |
 | Blocked · MAT-002 | a fast-loop model uses `single`/`double` | Convert to fixed-point, or move the model to a slower rate group |
+| Blocked · assign rate | the model is rate-agnostic (everything inherited) | Pick a rate group in the GROUP column |
+| Interface mismatch | a port contradicts the type its data dictionary declares | Fix the model or the dictionary — the mismatch will otherwise surface as a bind refusal |
+
+**Rate-agnostic models.** A model whose sample times are all inherited
+(`FixedStepAuto`) carries no rate of its own — the normal shape of the
+interface-first development cycle, where rates are an integration decision.
+Such models show **UNASSIGNED** with a picker in the GROUP column; the choice
+is saved in the routing config (the same model can run in a different slot in
+another workspace) and is *forced* at code generation, so the generated step
+matches its dispatcher slot exactly. MAT-002 runs against the assigned group:
+a `single`-carrying model is refused for the fast group at the moment you
+pick it.
+
+**Data dictionaries.** Models attached to `.sldd` dictionaries — including
+chains of referenced dictionaries shared between models — extract
+transparently; the dictionary files count toward staleness, so editing a
+shared interface dictionary re-extracts every model attached to it.
 
 MAT-002 is not advisory. The RP2040 has no FPU, so software floating point
 in a 1 ms loop would blow the deadline; the build is refused rather than
@@ -73,6 +90,23 @@ rather than blocking the fast loop.
 
 **Suggest Bindings** proposes exact name+type matches as a preview you can
 apply or undo in one step. Ambiguous matches are deliberately omitted.
+
+**HAL endpoints and physical units.** GPIO endpoints are `boolean` — a pin
+is one bit, and boolean button/LED ports bind them directly. The ADC endpoint
+is deliberately `uint16` raw counts: converting counts to physical units
+(°C, rpm) costs float math, which is banned from the fast loop (MAT-002).
+The idiom is a **conditioning model** — a small slow-group model that reads
+`hal_adc_read`, applies the scaling, and publishes the physical-units signal
+for the rest of the mesh:
+
+```
+hal_adc_read ──uint16──▶ CondTemp (slow) ──single °C──▶ consumers
+```
+
+UART-sourced signals (e.g. an external sensor feed) have no HAL endpoint
+yet: UART0 carries stdio/telemetry, and a second-channel design is tracked
+as open work — declare the signal in your interface dictionary, but it
+cannot be routed in this version.
 
 ## 5. Build
 

@@ -1,0 +1,17 @@
+{
+  "schema_version": 2,
+  "workspace": "examples",
+  "rate_assignments": {
+    "model1": "fast_1ms",
+    "model2": "slow_100ms",
+    "model3": "slow_100ms"
+  },
+  "connections": [
+    {"producer": "hal.hal_gpio_read", "consumer": "model1.GPI_Button1_B", "hal_arg": 14},
+    {"producer": "hal.hal_gpio_read", "consumer": "model1.GPI_Button2_B", "hal_arg": 15},
+    {"producer": "model1.MOD_Decision1_B", "consumer": "model2.MOD_Decision1_B"},
+    {"producer": "model1.MOD_Decision2_B", "consumer": "model2.MOD_Decision2_B"},
+    {"producer": "model2.GPO_Led1_B", "consumer": "hal.hal_gpio_write", "hal_arg": 25},
+    {"producer": "model2.GPO_Led2_B", "consumer": "hal.hal_gpio_write", "hal_arg": 24}
+  ]
+}

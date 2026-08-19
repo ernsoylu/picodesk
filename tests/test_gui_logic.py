@@ -102,10 +102,15 @@ def test_type_filter_blocks_mismatches(model) -> None:
     """GUI-008: only exact type/width/scaling matches are selectable."""
     rows = {port.ref: (ok, why) for port, ok, why
             in model.selectable_consumers("FastCtrl.torque_cmd")}
-    # int16 producer -> uint8 consumer must be rejected, with the reason.
+    # int16 producer -> uint16 consumer must be rejected, with the reason.
+    # (GPIO endpoints are boolean since G-6 — a pin is one bit — so the
+    # numeric-mismatch case uses the PWM endpoint.)
+    ok, why = rows["hal.hal_pwm_set_duty"]
+    assert not ok
+    assert "int16" in why and "uint16" in why
     ok, why = rows["hal.hal_gpio_write"]
     assert not ok
-    assert "int16" in why and "uint8" in why
+    assert "boolean" in why
     # An already-bound inport reports that instead — the more useful reason.
     ok, why = rows["FastCtrl.derate_in"]
     assert not ok

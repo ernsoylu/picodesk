@@ -5,14 +5,14 @@
       "name": "hal_gpio_read",
       "peripheral": "GPIO",
       "direction": "producer",
-      "data_type": "uint8",
+      "data_type": "boolean",
       "isr_safe": true
     },
     {
       "name": "hal_gpio_write",
       "peripheral": "GPIO",
       "direction": "consumer",
-      "data_type": "uint8",
+      "data_type": "boolean",
       "isr_safe": true
     },
     {

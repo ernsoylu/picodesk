@@ -176,7 +176,7 @@ still be rejected — model2 and model3 both drive `GPO_Led1_B`, and routing
 both to one pin is a genuine double-drive the check exists to catch.
 *(GUI-009; mechanical.)*
 
-### G-6 · The HAL vocabulary cannot express the sample's endpoints — **open (scope)**
+### G-6 · The HAL vocabulary cannot express the sample's endpoints — **closed (UART deferred)**
 
 Three mismatches between `hal_manifest.json` and the interface catalogue:
 
@@ -279,12 +279,14 @@ identifier forcing on `model1`.
 
 ## 5. The two remaining decisions
 
-**G-6, HAL vocabulary.** Options: (a) add boolean GPIO endpoints and document
-the conditioning-model idiom for physical-units ADC (raw `uint16` → slow
-conversion model → `single`), leaving UART input as designed-later work;
-(b) also design the UART input channel now (protocol framing, ownership vs
-stdio/telemetry); (c) sanction boolean↔uint8 coercion at HAL edges instead
-of new endpoints, relaxing GUI-008 at the HAL boundary only.
+**G-6, HAL vocabulary — decided (option a).** GPIO endpoints are now
+`boolean` (a pin is one bit; the firmware ABI is unchanged since boolean
+storage is `uint8_t`), the conditioning-model idiom for physical-units ADC is
+documented in the user guide, and `examples/routing.json` is a working
+reference integration: buttons → model1 → seqlock boundary → model2 → LEDs,
+resolving and generating end to end. UART input remains deferred, tracked in
+the problem inventory: UART0 carries stdio/telemetry and a second-channel
+design (framing, ownership) is real work, not a manifest entry.
 
 **G-8, tunable parameters.** Options: (a) diagnostic only (current state:
 `dictionary_parameters` is recorded and surfaced); (b) a calibration policy —
