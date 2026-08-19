@@ -12,15 +12,18 @@ nothing tells you. So fields are matched by NAME here, once, and every suite
 uses this keyword.
 
 *** Variables ***
-# One name=value pair. Field names are C identifiers, values are signed ints.
-${TELEMETRY_FIELD_RE}         (?P<k>\\w+)=(?P<v>-?\\d+)
+# One name=value pair. Field names are C identifiers; values are signed
+# decimals or 0x-prefixed hex (the FAULT record prints pc/lr/psr as 0x%08lx).
+# int(v, 0) decodes both — safe because no firmware printf zero-pads a
+# decimal, which is the one form base-0 rejects.
+${TELEMETRY_FIELD_RE}         (?P<k>\\w+)=(?P<v>0x[0-9a-fA-F]+|-?\\d+)
 
 *** Keywords ***
 Parse Telemetry Fields
     [Documentation]           Turn one telemetry line into a name -> int dict.
     [Arguments]               ${line}
     ${t}=                     Evaluate
-    ...                       {m.group('k'): int(m.group('v')) for m in re.finditer(r"${TELEMETRY_FIELD_RE}", $line)}
+    ...                       {m.group('k'): int(m.group('v'), 0) for m in re.finditer(r"${TELEMETRY_FIELD_RE}", $line)}
     ...                       re
     RETURN                    ${t}
 

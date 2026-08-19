@@ -150,15 +150,17 @@ drills that exercised nothing. Replaced with a fetch from unmapped memory,
 which genuinely aborts, plus an honest split: the assert drill covers
 everything downstream of the vector, and dispatch is documented as O-6.
 
-**V-7 · Four Renode suites parsed telemetry by position.** Every generated-
-firmware suite indexed regex groups 1..9, and the generated telemetry line is
-not even fixed in shape — its fields depend on how many rate groups and debug
-signals the workspace has. Inserting a field shifts every later index by one:
-the suite keeps passing, but each assertion is now checking a different number
-than it names. Found while appending `crit_max` to the telemetry line, which
-would have done exactly that. All four now match by name through one shared
-keyword (`sim/telemetry.resource`), which also makes them tolerant of a
-firmware built before or after a field was added.
+**V-7 · Five Renode suites parsed machine lines by position.** Every
+generated-firmware suite indexed telemetry regex groups 1..9, and the
+generated line is not even fixed in shape — its fields depend on how many rate
+groups and debug signals the workspace has. The faults suite did the same to
+the eight-field FAULT record. Inserting a field shifts every later index by
+one: the suite keeps passing, but each assertion is now checking a different
+number than it names. Found while appending `crit_max` to the telemetry line,
+which would have done exactly that. All five now match by name through one
+shared keyword (`sim/telemetry.resource`, hex-aware for the FAULT record's
+`0x%08lx` fields), which also makes them tolerant of a firmware built before
+or after a field was added.
 
 **V-6 · GUI-012's hardware gate was concealing an unbuilt feature.** The
 traceability matrix carried the requirement on two widget-rendering tests, a
@@ -196,13 +198,14 @@ being true.
 
 ## Closed — third-party defects and limitations (7)
 
-**T-1 · Renode SIO spinlock slot-0 collision — ACTION OUTSTANDING.** Lock
+**T-1 · Renode SIO spinlock slot-0 collision — reported upstream.** Lock
 ownership is stored as the CPU slot index, so slot 0 is indistinguishable
 from the "free" sentinel; both cores could hold a FreeRTOS SMP kernel lock
 simultaneously, asserting in `vPortRecursiveLock`. It also caused a ~1000×
 emulation slowdown that looked like a hang. Patched locally in
-`sim/patches/rp2040_sio.cs`. **Should be reported upstream to
-`matgla/Renode_RP2040` so the patch can be dropped.**
+`sim/patches/rp2040_sio.cs`; reported to `matgla/Renode_RP2040` as
+[issue #25](https://github.com/matgla/Renode_RP2040/issues/25) with the fix,
+so the local patch can be dropped once it lands upstream.
 
 **T-2 · Renode maps no non-striped SRAM bank windows** — the banked linker
 script needs 0x2100_0000–0x2103_FFFF. Worked around with a board overlay

@@ -28,6 +28,7 @@ Suite Setup                   Setup
 Suite Teardown                Teardown
 Test Teardown                 Test Teardown
 Resource                      ${RENODEKEYWORDS}
+Resource                      ${CURDIR}${/}telemetry.resource
 
 *** Variables ***
 ${FIRMWARE}                   ${CURDIR}${/}..${/}build-sim${/}picodesk_firmware.elf
@@ -52,10 +53,13 @@ Inject
     Execute Command           sysbus.uart0 WriteChar ${command}
 
 Parse Fault Line
+    [Documentation]           FAULT record as a name -> int dict; hex fields
+    ...                       (pc/lr/psr) decode transparently.
     [Arguments]               ${line}
-    ${m}=    Evaluate    re.search(r"FAULT kind=(\\d+) pc=0x([0-9a-f]+) lr=0x([0-9a-f]+) psr=0x([0-9a-f]+) core=(\\d+) hb=(\\d+) seq=(\\d+) boot_wdt=(\\d)", $line)    re
-    Should Not Be Equal       ${m}    ${None}    msg=unparseable fault line: ${line}
-    RETURN                    ${m}
+    ${t}=                     Parse Telemetry Fields    ${line}
+    Telemetry Must Contain    ${t}    ${line}    kind    pc    lr    psr
+    ...                       core    hb    seq    boot_wdt
+    RETURN                    ${t}
 
 *** Test Cases ***
 Assert Failure Survives Reset And Is Reported
@@ -68,19 +72,15 @@ Assert Failure Survives Reset And Is Reported
     Wait For Line On Uart     INJECT assert
     Wait For Line On Uart     ${BOOT_BANNER}
     ${line}=    Wait For Line On Uart    FAULT kind=
-    ${m}=    Parse Fault Line    ${line['Line']}
-    ${kind}=    Evaluate      int($m.group(1))
-    Should Be Equal As Integers    ${kind}    2    msg=expected FAULT_KIND_ASSERT
+    ${t}=    Parse Fault Line    ${line['Line']}
+    Should Be Equal As Integers    ${t}[kind]    2    msg=expected FAULT_KIND_ASSERT
     # pc carries the __FILE__ pointer (flash), lr the line number.
-    ${pc}=      Evaluate      int($m.group(2), 16)
-    Should Be True            ${pc} >= 0x10000000    msg=file pointer not in flash
-    ${line_no}=    Evaluate   int($m.group(3), 16)
-    Should Be True            ${line_no} > 0    msg=assert line number not recorded
+    Should Be True            ${t}[pc] >= 0x10000000    msg=file pointer not in flash
+    Should Be True            ${t}[lr] > 0    msg=assert line number not recorded
     # The heartbeat at fault time proves the RTE was live when it died.
-    ${hb}=      Evaluate      int($m.group(6))
-    Should Be True            ${hb} > 0    msg=heartbeat not captured
-    ${wdt}=     Evaluate      int($m.group(8))
-    Should Be Equal As Integers    ${wdt}    1    msg=reset was not a watchdog reset
+    Should Be True            ${t}[hb] > 0    msg=heartbeat not captured
+    Should Be Equal As Integers    ${t}[boot_wdt]    1
+    ...                       msg=reset was not a watchdog reset
 
 Fault Record Is Consumed After Reporting
     [Documentation]           BLD-006: the record is invalidated once printed,
@@ -109,14 +109,12 @@ Wedged Fast Path Trips The Cross-Core Watchdog
     Inject                    0x77    # 'w'
     Wait For Line On Uart     INJECT isr_wedge
     # Core 1 is demonstrably alive here — it keeps printing telemetry — while
-    # the heartbeat delta falls to zero because core 0 is wedged. (The
-    # pattern is matched in Python: Robot reads a bare "dhb=0" argument as a
-    # named argument, so it cannot be passed to the keyword directly.)
+    # the heartbeat delta falls to zero because core 0 is wedged.
     ${stalled}=    Set Variable    ${False}
     FOR    ${i}    IN RANGE    3
         ${line}=    Wait For Line On Uart    RTE hb=
-        ${m}=    Evaluate    re.search(r"dhb=(\\d+)", $line['Line'])    re
-        ${stalled}=    Evaluate    $stalled or ($m is not None and int($m.group(1)) == 0)
+        ${t}=    Parse Telemetry Fields    ${line['Line']}
+        ${stalled}=    Evaluate    $stalled or $t.get('dhb') == 0
         Exit For Loop If    ${stalled}
     END
     Should Be True            ${stalled}
@@ -145,9 +143,8 @@ Healthy System Keeps Feeding The Watchdog
     Boot And Reach Steady State
     Wait For Line On Uart     RTE hb=
     ${line}=    Wait For Line On Uart    RTE hb=
-    ${m}=    Evaluate    re.search(r"dhb=(\\d+)", $line['Line'])    re
-    Should Not Be Equal       ${m}    ${None}
-    ${dhb}=    Evaluate       int($m.group(1))
-    Should Be True            900 <= ${dhb} <= 1100
-    ...                       msg=heartbeat not advancing at 1 kHz: ${dhb}
+    ${t}=    Parse Telemetry Fields    ${line['Line']}
+    Telemetry Must Contain    ${t}    ${line['Line']}    dhb
+    Should Be True            900 <= ${t}[dhb] <= 1100
+    ...                       msg=heartbeat not advancing at 1 kHz: ${t}[dhb]
     Should Not Be On Uart     ${BOOT_BANNER}    timeout=3

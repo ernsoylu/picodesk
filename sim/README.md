@@ -23,7 +23,9 @@ the firmware's own telemetry stream.
   (0x2100_0000–0x2103_FFFF) that the banked linker script uses; the stock
   platform only maps the striped window. Real `MappedMemory`, because SRAM3
   hosts SRAM-executed code and Renode CPUs execute from mapped memory only.
-- `patches/rp2040_sio.cs` fixes upstream spinlock modeling: ownership was
+- `patches/rp2040_sio.cs` (reported upstream as
+  [matgla/Renode_RP2040#25](https://github.com/matgla/Renode_RP2040/issues/25);
+  drop the patch once it lands) fixes upstream spinlock modeling: ownership was
   stored as the CPU slot index, so slot 0 collided with the "free" sentinel
   and both cores could take a FreeRTOS SMP kernel lock simultaneously
   (asserting in `vPortRecursiveLock`). The patch stores owner as slot+1 and
@@ -32,8 +34,10 @@ the firmware's own telemetry stream.
 
 ## Telemetry parsing
 
-Every suite reads the firmware's one-line-per-second telemetry stream through
-`telemetry.resource`, which parses fields by NAME into a dict.
+Every suite reads the firmware's machine-parseable lines — the per-second
+telemetry stream and the boot-time FAULT record alike — through
+`telemetry.resource`, which parses `name=value` fields by NAME into a dict
+(hex-aware, for the FAULT record's `0x%08lx` registers).
 
 This matters more than it looks. The generated firmware's line is not fixed in
 shape — its fields depend on how many rate groups and debug signals the
@@ -58,6 +62,21 @@ before or after a field was added.
 | Test | Phase | Requirements |
 |---|---|---|
 | Generated RTE Runs The Full Mesh | P5 (M1) | RTE-002/004/005 on generated code; the ASW↔ASW round trip closes through both seqlock buses |
+
+`picodesk_ert.robot` — generated firmware running REAL Embedded Coder model
+code (built locally against MATLAB R2025b; not in CI):
+
+| Test | Phase | Requirements |
+|---|---|---|
+| ERT Generated Models Run In The RTE | O-9 | RTE-002/004/005 with genuine ERT step code on both rate groups |
+| ERT Cross-Core Loop Closes Through Both Seqlock Buses | O-9 | RTE-001/004: the fast↔slow loop closes through ERT code both ways |
+
+`picodesk_scale.robot` — 28-model workspace (SRS §1.1 scope):
+
+| Test | Phase | Requirements |
+|---|---|---|
+| Twenty-Eight Model Workspace Dispatches Correctly | P8 | RTE-002/004/005 + rate-group ratios at full scale |
+| Scale Workspace Signals Propagate Through The Chain | P8 | RTE-001/004: a live tail signal proves the whole chained mesh moves data |
 
 `picodesk_faults.robot` — fault-injection drills:
 
